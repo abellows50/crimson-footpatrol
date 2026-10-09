@@ -1,0 +1,771 @@
+{
+  "system": "cambridge",
+  "talkgroups": {
+    "1051": "Cambridge Fire - Ch 1 (Dispatch)",
+    "1053": "Cambridge Fire - Citywide",
+    "1059": "Cambridge Fire - EMS",
+    "1227": "Cambridge - Pro EMS",
+    "1229": "Cambridge EMS - 1",
+    "1231": "Cambridge EMS - 2",
+    "1239": "Cambridge - Pro Intercept"
+  },
+  "whisper_prompt": "Cambridge Fire and Pro EMS dispatch radio. Pro 1, Pro 2, Paramedic 1, Paramedic 7, Paramedic 17, Engine 9, Rescue 1, Squad 2. Squad 2 to fire alarm. HUPD private response. Harvard Yard, Kirkland House, Mass Ave, Mount Auburn Street, Plympton Street, Quincy Street, Oxford Street. Ambulance, paramedic, responding, transporting, miles, point, engine, ALS, BLS, fire alarm, sign on and respond, answering, available, received, to, Pro base, Pro dispatch, medic, chest pain, motor vehicle accident, Emerson, the mount, the general, BLS to handle, responding with, its gonna be",
+  "rules": [
+    {
+      "term": "HUPD",
+      "level": "high",
+      "category": "HUPD / private",
+      "aliases": [
+        "H U P D",
+        "HUP D",
+        "H UPD",
+        "who PD",
+        "Harvard PD"
+      ]
+    },
+    {
+      "term": "private response",
+      "level": "high",
+      "category": "HUPD / private",
+      "aliases": [
+        "private responder",
+        "privately responding",
+        "private ambulance response"
+      ]
+    },
+    {
+      "term": "Harvard police",
+      "level": "high",
+      "category": "HUPD / private",
+      "aliases": [
+        "Harvard University police",
+        "Harvard University PD"
+      ]
+    },
+    {
+      "term": "Crimson EMS",
+      "level": "high",
+      "category": "HUPD / private",
+      "aliases": [
+        "Crimson"
+      ]
+    },
+    {
+      "term": "Harvard Yard",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Apley Court",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Canaday Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": [
+        "Canaday"
+      ]
+    },
+    {
+      "term": "Grays Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": [
+        "Gray's Hall"
+      ]
+    },
+    {
+      "term": "Greenough Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": [
+        "Greenough"
+      ]
+    },
+    {
+      "term": "Hollis Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Holworthy Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": [
+        "Holworthy"
+      ]
+    },
+    {
+      "term": "Hurlbut Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": [
+        "Hurlbut"
+      ]
+    },
+    {
+      "term": "Lionel Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Massachusetts Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": [
+        "Mass Hall"
+      ]
+    },
+    {
+      "term": "Matthews Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Mower Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Pennypacker",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Stoughton Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Straus Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Thayer Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Weld Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Wigglesworth",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Widener Library",
+      "level": "high",
+      "category": "Yard",
+      "aliases": [
+        "Widener"
+      ]
+    },
+    {
+      "term": "Lamont Library",
+      "level": "high",
+      "category": "Yard",
+      "aliases": [
+        "Lamont"
+      ]
+    },
+    {
+      "term": "Houghton Library",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Memorial Church",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "University Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Sever Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Emerson Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Boylston Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Phillips Brooks House",
+      "level": "high",
+      "category": "Yard",
+      "aliases": [
+        "PBH"
+      ]
+    },
+    {
+      "term": "Adams House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": []
+    },
+    {
+      "term": "Cabot House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": []
+    },
+    {
+      "term": "Currier House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": []
+    },
+    {
+      "term": "Dunster House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": []
+    },
+    {
+      "term": "Eliot House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": [
+        "Elliott House",
+        "Elliot House"
+      ]
+    },
+    {
+      "term": "Kirkland House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": []
+    },
+    {
+      "term": "Leverett House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": [
+        "Leverett",
+        "McKinlock Hall"
+      ]
+    },
+    {
+      "term": "Lowell House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": []
+    },
+    {
+      "term": "Mather House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": [
+        "Mather"
+      ]
+    },
+    {
+      "term": "Pforzheimer House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": [
+        "Pfoho",
+        "Forzheimer House",
+        "Forsheimer House",
+        "Porzheimer House",
+        "56 Linnaean Street",
+        "56 Linnean Street"
+      ]
+    },
+    {
+      "term": "Quincy House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": []
+    },
+    {
+      "term": "Winthrop House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": []
+    },
+    {
+      "term": "Dudley House",
+      "level": "high",
+      "category": "Houses",
+      "aliases": []
+    },
+    {
+      "term": "Radcliffe Quad",
+      "level": "high",
+      "category": "Houses",
+      "aliases": []
+    },
+    {
+      "term": "Annenberg",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Annenberg Hall"
+      ]
+    },
+    {
+      "term": "Memorial Hall",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Mem Hall"
+      ]
+    },
+    {
+      "term": "Sanders Theatre",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Sanders Theater"
+      ]
+    },
+    {
+      "term": "Science Center",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Harvard Science Center"
+      ]
+    },
+    {
+      "term": "Smith Campus Center",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Smith Center",
+        "Holyoke Center"
+      ]
+    },
+    {
+      "term": "Harvard University Health Services",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "HUHS",
+        "Harvard Health Services"
+      ]
+    },
+    {
+      "term": "Malkin Athletic Center",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Malkin"
+      ]
+    },
+    {
+      "term": "Hemenway Gym",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Hemenway"
+      ]
+    },
+    {
+      "term": "Harvard Law School",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Harvard Law",
+        "Langdell",
+        "Wasserstein",
+        "Pound Hall",
+        "Hauser Hall",
+        "Austin Hall"
+      ]
+    },
+    {
+      "term": "Divinity School",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Harvard Divinity",
+        "Andover Hall"
+      ]
+    },
+    {
+      "term": "Kennedy School",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Harvard Kennedy School",
+        "HKS"
+      ]
+    },
+    {
+      "term": "Gund Hall",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Graduate School of Design"
+      ]
+    },
+    {
+      "term": "Harvard Art Museums",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Fogg Museum",
+        "Carpenter Center"
+      ]
+    },
+    {
+      "term": "Peabody Museum",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Museum of Natural History"
+      ]
+    },
+    {
+      "term": "Northwest Labs",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Northwest Building",
+        "Northwest Lab"
+      ]
+    },
+    {
+      "term": "Barker Center",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": []
+    },
+    {
+      "term": "Loeb Drama Center",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Loeb Drama",
+        "American Repertory Theater"
+      ]
+    },
+    {
+      "term": "Radcliffe Yard",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Byerly Hall"
+      ]
+    },
+    {
+      "term": "Hilles",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "SOCH",
+        "Student Organization Center"
+      ]
+    },
+    {
+      "term": "Cabot Science Library",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": []
+    },
+    {
+      "term": "Faculty Club",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Harvard Faculty Club"
+      ]
+    },
+    {
+      "term": "Conant Hall",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Perkins Hall",
+        "Richards Hall",
+        "Child Hall",
+        "Hastings Hall",
+        "Shaw Hall"
+      ]
+    },
+    {
+      "term": "Peabody Terrace",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": []
+    },
+    {
+      "term": "Harvard",
+      "level": "medium",
+      "category": "General",
+      "aliases": []
+    },
+    {
+      "term": "Harvard Square",
+      "level": "medium",
+      "category": "General",
+      "aliases": []
+    },
+    {
+      "term": "Plympton Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": [
+        "Plympton"
+      ]
+    },
+    {
+      "term": "Linden Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Holyoke Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "DeWolfe Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": [
+        "De Wolfe",
+        "DeWolf"
+      ]
+    },
+    {
+      "term": "Bow Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Arrow Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Mill Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Prescott Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Quincy Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Oxford Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Divinity Avenue",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": [
+        "Divinity Ave"
+      ]
+    },
+    {
+      "term": "Kirkland Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Cowperthwaite Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": [
+        "Cowperthwaite"
+      ]
+    },
+    {
+      "term": "Mount Auburn Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": [
+        "Mt Auburn Street",
+        "Mount Auburn St"
+      ]
+    },
+    {
+      "term": "JFK Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": [
+        "John F Kennedy Street",
+        "Kennedy Street"
+      ]
+    },
+    {
+      "term": "Dunster Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Everett Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Garden Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Shepard Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Linnaean Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": [
+        "Linnean Street"
+      ]
+    },
+    {
+      "term": "Hilliard Street",
+      "level": "medium",
+      "category": "Streets",
+      "aliases": []
+    },
+    {
+      "term": "Pforzheimer",
+      "level": "medium",
+      "category": "Houses",
+      "aliases": [
+        "Forzheimer",
+        "Forsheimer"
+      ]
+    }
+  ],
+  "address_ranges": [
+    {
+      "street": "Massachusetts Avenue",
+      "aliases": [
+        "Mass Ave",
+        "Mass Avenue",
+        "Massachusetts Ave"
+      ],
+      "from": 1200,
+      "to": 1600,
+      "level": "high",
+      "label": "Mass Ave 1200-1600 (Yard / Square)"
+    },
+    {
+      "street": "Massachusetts Avenue",
+      "aliases": [
+        "Mass Ave",
+        "Mass Avenue",
+        "Massachusetts Ave"
+      ],
+      "from": 1033,
+      "to": 1033,
+      "level": "high",
+      "label": "1033 Mass Ave (HUPD HQ)"
+    },
+    {
+      "street": "Mount Auburn Street",
+      "aliases": [
+        "Mt Auburn Street",
+        "Mount Auburn St",
+        "Mt Auburn"
+      ],
+      "from": 1,
+      "to": 120,
+      "level": "high",
+      "label": "Mt Auburn St 1-120 (Houses / HUHS)"
+    },
+    {
+      "street": "Memorial Drive",
+      "aliases": [
+        "Memorial Dr"
+      ],
+      "from": 900,
+      "to": 1000,
+      "level": "high",
+      "label": "Memorial Dr 900-1000 (river Houses / Peabody Terrace)"
+    },
+    {
+      "street": "Oxford Street",
+      "aliases": [
+        "Oxford St"
+      ],
+      "from": 1,
+      "to": 60,
+      "level": "high",
+      "label": "Oxford St 1-60 (Science Center / labs)"
+    },
+    {
+      "street": "Garden Street",
+      "aliases": [
+        "Garden St"
+      ],
+      "from": 50,
+      "to": 120,
+      "level": "high",
+      "label": "Garden St 50-120 (Quad)"
+    },
+    {
+      "label": "Bank St 1-100",
+      "street": "Bank Street",
+      "aliases": [
+        "Bank St",
+        "Banks Street"
+      ],
+      "from": 1,
+      "to": 100,
+      "level": "high"
+    }
+  ]
+}

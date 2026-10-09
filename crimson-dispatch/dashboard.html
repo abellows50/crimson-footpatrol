@@ -1,0 +1,1676 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crimson Dispatch Watch</title>
+<meta name="theme-color" content="#0d1117">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d1117; --panel:#161b22; --panel2:#1f2630; --line:#2d3540; --text:#e6edf3; --muted:#8b98a8;
+  --crimson:#a51c30; --crimson-2:#ff3b55; --amber:#f0a020; --green:#3fbf7f; --blue:#6aa8ff;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 "Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:#4a5666}
+button.primary{background:var(--crimson);border-color:var(--crimson)}
+button.ghost{background:transparent}
+input,select,textarea{font:inherit;color:var(--text);background:#0a0e13;border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:100%}
+header{position:sticky;top:0;z-index:5;background:rgba(13,17,23,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
+.brand .dot{width:12px;height:12px;border-radius:3px;background:var(--crimson);box-shadow:0 0 0 4px rgba(165,28,48,.25)}
+.pills{display:flex;gap:6px;flex-wrap:wrap}
+.pill{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);white-space:nowrap}
+.pill.ok{color:var(--green);border-color:rgba(63,191,127,.4)}
+.pill.warn{color:var(--amber);border-color:rgba(240,160,32,.45)}
+.pill.bad{color:#fff;background:var(--crimson);border-color:var(--crimson)}
+.controls{display:flex;gap:6px;flex-wrap:wrap}
+main{max-width:1200px;margin:0 auto;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+section.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.card h2{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
+.card h2 .sp{margin-left:auto}
+.banner{display:none;margin:16px auto 0;max-width:1200px;padding:0 16px}
+.banner.show{display:block}
+.banner .inner{border-radius:8px;padding:12px 14px;background:#3a2a10;border:1px solid var(--amber);color:#ffe2b0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.banner .inner.bad{background:#3a1018;border-color:var(--crimson-2);color:#ffd5dc}
+/* active alert takeover */
+#active{max-width:1200px;margin:16px auto 0;padding:0 16px;display:none}
+#active.show{display:block}
+.alert-big{border-radius:10px;padding:18px;border:2px solid var(--crimson-2);background:linear-gradient(180deg,#5a0c1a,#2b0910);position:relative}
+.alert-big.medium{border-color:var(--amber);background:linear-gradient(180deg,#4a3209,#251a07)}
+.alert-big.flash{animation:flash 1s steps(2,start) infinite}
+@keyframes flash{50%{box-shadow:0 0 0 6px rgba(255,59,85,.55),0 0 60px rgba(255,59,85,.5)}}
+.alert-big .kicker{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#ffb3bf}
+.alert-big.medium .kicker{color:#ffd28a}
+.alert-big .terms{font-size:28px;font-weight:800;margin:4px 0 8px;line-height:1.15}
+.alert-big .quote{font-size:18px;background:rgba(0,0,0,.25);padding:10px 12px;border-radius:8px;font-family:var(--mono)}
+.alert-big .meta{color:#e8c9cf;font-size:13px;margin:8px 0 12px}
+.alert-big .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.alert-big .ack{background:#fff;color:#2b0910;border:none;font-weight:800;padding:12px 20px;font-size:16px}
+.alert-big .tx{font-size:13px;color:#f0d6da;margin-top:10px}
+.alert-big .tx div{padding:4px 0;border-top:1px dashed rgba(255,255,255,.12);font-family:var(--mono)}
+/* feed */
+.feed{max-height:calc(100vh - 220px);overflow:auto}
+@media (max-width:900px){.feed{max-height:none}}
+.call{display:grid;grid-template-columns:64px 1fr auto;gap:10px;padding:9px 14px;border-bottom:1px solid #222a34;align-items:start}
+.call:last-child{border-bottom:none}
+.call .t{font-family:var(--mono);color:var(--muted);font-size:12px;padding-top:2px}
+.call .tg{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.call .tx{font-family:var(--mono);font-size:14px;word-break:break-word}
+.call .tx.empty{color:#5c6878;font-style:italic}
+.call.hit-high{background:rgba(165,28,48,.14);border-left:3px solid var(--crimson-2)}
+.call.hit-medium{background:rgba(240,160,32,.10);border-left:3px solid var(--amber)}
+.call.backfill{opacity:.65}
+mark{background:rgba(255,59,85,.35);color:#fff;border-radius:3px;padding:0 2px}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:5px;margin:3px 4px 0 0;background:var(--panel2);border:1px solid var(--line)}
+.tag.high{border-color:var(--crimson-2);color:#ffb3bf}
+.tag.medium{border-color:var(--amber);color:#ffd28a}
+.play{padding:4px 9px;font-size:12px}
+.alerts-list .a{padding:10px 14px;border-bottom:1px solid #222a34;cursor:pointer}
+.alerts-list .a:hover{background:#1b222b}
+.alerts-list .a .h{font-weight:700}
+.alerts-list .a .s{font-size:12px;color:var(--muted)}
+.alerts-list .a.high .h{color:#ff8a9b}
+.alerts-list .a.medium .h{color:#ffc66b}
+.empty-state{padding:18px 14px;color:var(--muted);font-size:14px}
+.filters{display:flex;gap:6px;flex-wrap:wrap;padding:8px 14px;border-bottom:1px solid var(--line)}
+.filters label{font-size:12px;color:var(--muted);display:flex;gap:5px;align-items:center;background:var(--panel2);padding:3px 8px;border-radius:6px;border:1px solid var(--line);cursor:pointer}
+.filters input{width:auto}
+/* drawer */
+dialog{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:0;width:min(980px,96vw);max-height:90vh}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+.dlg-head{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:1}
+.dlg-head h3{margin:0;font-size:16px;margin-right:auto}
+.dlg-body{padding:14px 16px;overflow:auto;max-height:calc(90vh - 60px)}
+.tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.tabs button.on{background:var(--crimson);border-color:var(--crimson)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:600;padding:6px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+td{padding:4px 6px;border-bottom:1px solid #222a34;vertical-align:top}
+td input,td select{padding:4px 6px;font-size:13px}
+.hint{color:var(--muted);font-size:13px;margin:6px 0 12px}
+.row-gap{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#000;border:1px solid var(--line);padding:10px 14px;border-radius:10px;font-size:14px;z-index:50;display:none}
+.disclaimer{max-width:1200px;margin:0 auto;padding:0 16px 24px;color:#6b7787;font-size:12px}
+.x-sr{position:absolute;left:-9999px}
+/* replay */
+.rp-form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.rp-form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.rp-form input{width:210px}
+.rp-status{margin:12px 0 4px;font-size:14px}
+.rp-status progress{width:100%;height:8px;accent-color:var(--crimson)}
+.rp-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;margin-top:10px}
+@media (max-width:800px){.rp-grid{grid-template-columns:1fr}}
+.rp-box{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.rp-box h4{margin:0;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:8px 12px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:center}
+.rp-box h4 .sp{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400}
+.rp-scroll{max-height:55vh;overflow:auto}
+.rp-alert{padding:9px 12px;border-bottom:1px solid #222a34}
+.rp-alert .h{font-weight:700}
+.rp-alert.high .h{color:#ff8a9b}
+.rp-alert.medium .h{color:#ffc66b}
+.rp-alert .s{font-size:12px;color:var(--muted)}
+.rp-alert .q{font-family:var(--mono);font-size:13px;margin-top:3px}
+/* call board */
+.board-wrap{max-width:1200px;margin:16px auto 0;padding:0 16px}
+.board-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.board-card h2{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.board-card h2 .sp{margin-left:auto;display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0;font-weight:400}
+.unit-strip{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.uchip{font-family:var(--mono);font-size:12px;padding:3px 8px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);white-space:nowrap;cursor:default}
+.uchip b{font-weight:600}
+.uchip.inferred{border-style:dashed}
+.st-dispatched{color:#ffd28a;border-color:rgba(240,160,32,.6)}
+.st-responding{color:#a9cbff;border-color:rgba(106,168,255,.6)}
+.st-on-scene{color:#ffb3bf;border-color:rgba(255,59,85,.6)}
+.st-transporting{color:#d7c2ff;border-color:rgba(180,140,255,.65)}
+.st-at-hospital{color:#c9b8e8;border-color:rgba(180,140,255,.4)}
+.st-clear{color:#8fdcb3;border-color:rgba(63,191,127,.35);opacity:.75}
+.inc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;padding:12px 14px}
+.inc{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.inc.harvard-high{border:2px solid var(--crimson-2);background:linear-gradient(180deg,rgba(165,28,48,.18),var(--bg))}
+.inc.harvard-medium{border-color:var(--amber)}
+.inc.done{opacity:.6}
+.inc .top{display:flex;gap:6px;align-items:flex-start}
+.inc .what{font-weight:700;font-size:15px;line-height:1.25;margin-right:auto;min-width:0;word-break:break-word}
+.badge{font-size:11px;font-weight:700;padding:1px 6px;border-radius:5px;border:1px solid var(--line);white-space:nowrap}
+.badge.als{color:#ffb3bf;border-color:rgba(255,59,85,.5)}
+.badge.bls{color:#a9cbff;border-color:rgba(106,168,255,.5)}
+.badge.hv{background:var(--crimson);border-color:var(--crimson);color:#fff}
+.badge.hv.medium{background:transparent;color:#ffd28a;border-color:var(--amber)}
+.inc .where{font-family:var(--mono);font-size:13px;word-break:break-word}
+.inc .meta{font-size:12px;color:var(--muted)}
+.inc .ulist{display:flex;flex-wrap:wrap;gap:5px}
+.inc details summary{cursor:pointer;font-size:12px;color:var(--muted);list-style:none}
+.inc details summary::-webkit-details-marker{display:none}
+.inc details[open] summary{margin-bottom:4px}
+.tl{font-size:12px;font-family:var(--mono);max-height:220px;overflow:auto;border-top:1px dashed var(--line)}
+.tl div{display:grid;grid-template-columns:44px 1fr auto;gap:6px;padding:4px 0;border-bottom:1px dashed #222a34;align-items:start}
+.tl .tt{color:var(--muted)}
+.tl .d{color:#ffd28a}
+.tl .note{color:var(--muted);font-style:italic}
+.board-empty{padding:16px 14px;color:var(--muted);font-size:14px}
+.board-foot{padding:8px 14px 12px;color:#6b7787;font-size:12px}
+/* top tabs + our calls */
+.viewtabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px}
+.viewtabs button{border:none;background:transparent;padding:6px 14px;border-radius:7px;font-weight:600}
+.viewtabs button.on{background:var(--crimson);color:#fff}
+.vbadge{display:inline-block;min-width:18px;padding:0 5px;margin-left:6px;border-radius:9px;background:rgba(255,255,255,.15);font-size:11px;line-height:18px}
+.vbadge.hot{background:#fff;color:var(--crimson)}
+.more{position:relative}
+.more .menu{position:absolute;right:0;top:calc(100% + 6px);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:4px;min-width:220px;z-index:20;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.more .menu[hidden]{display:none}
+.more .menu button{text-align:left;border:none;background:transparent}
+.more .menu button:hover{background:var(--panel2)}
+body.view-calls .board-wrap, body.view-calls main, body.view-calls .disclaimer{display:none}
+#callsView{display:none;max-width:1000px;margin:16px auto 24px;padding:0 16px}
+body.view-calls #callsView{display:block}
+.calls-head{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.calls-head h1{font-size:20px;margin:0 auto 0 0}
+.calls-head input{max-width:220px}
+h3.grp{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:18px 0 8px}
+.suggest{background:var(--panel);border:1px dashed var(--line);border-radius:8px;padding:10px 12px;margin-bottom:6px}
+.suggest .h{font-size:12px;color:var(--muted);margin-bottom:4px}
+.sugg{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid #222a34}
+.sugg:first-of-type{border-top:none}
+.sugg .t{font-weight:600}
+.sugg .m{font-size:12px;color:var(--muted);margin-right:auto}
+.emptybig{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:28px 18px;text-align:center;color:var(--muted);line-height:1.8}
+.emptybig b{color:var(--text)}
+.ocall{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.ocall.active{border:2px solid var(--crimson-2)}
+.ocall .oh{display:grid;grid-template-columns:1fr auto;gap:8px;padding:12px 14px 6px;align-items:start}
+.status-chip{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.1em;padding:2px 8px;border-radius:6px;background:var(--panel2);color:var(--muted);margin-bottom:4px}
+.status-chip.live{background:var(--crimson);color:#fff}
+.ocall .oh input.title{font-size:19px;font-weight:700;background:transparent;border:1px solid transparent;padding:2px 4px;margin-left:-4px}
+.ocall .oh input.loc{font-family:var(--mono);font-size:14px;background:transparent;border:1px solid transparent;padding:2px 4px;margin-left:-4px}
+.ocall .oh input:hover,.ocall .oh input:focus{border-color:var(--line);background:#0a0e13}
+.ocall .oh input::placeholder{color:#6f7b8b;font-style:italic}
+.ocall .sub{font-size:12px;color:var(--muted);margin-top:2px}
+button.small{padding:4px 10px;font-size:12px}
+button.danger{color:#ff8a9b}
+.bignext{display:flex;flex-direction:column;align-items:center;gap:2px;width:calc(100% - 28px);margin:8px 14px 4px;padding:16px;font-size:20px;font-weight:800;background:var(--crimson);border:none;border-radius:8px;color:#fff}
+.bignext span{font-size:12px;font-weight:400;opacity:.85}
+.bignext:active{transform:scale(.99)}
+ol.steps{list-style:none;margin:8px 0 0;padding:4px 14px 0;display:grid;grid-template-columns:repeat(var(--n,8),minmax(0,1fr));position:relative}
+ol.steps::before{content:"";position:absolute;left:calc(14px + 50% / var(--n,8));right:calc(14px + 50% / var(--n,8));top:15px;height:2px;background:var(--line)}
+.step button{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;text-align:center;padding:4px 2px 6px;border-radius:8px;position:relative}
+.step button:hover{background:var(--panel2)}
+.step .dot{width:14px;height:14px;border-radius:50%;border:2px solid #4e5968;background:var(--panel);z-index:1}
+.step.done .dot{background:var(--green);border-color:var(--green)}
+.step.done.auto .dot{background:var(--panel);border-color:var(--green)}
+.step.next .dot{border-color:var(--crimson-2);box-shadow:0 0 0 4px rgba(255,59,85,.25)}
+.step.open button{background:var(--panel2)}
+.step .sl{font-size:11px;color:var(--muted);line-height:1.2;margin-top:2px}
+.step.done .sl{color:var(--text)}
+.step .st{font-family:var(--mono);font-size:13px;font-weight:700}
+.step:not(.done) .st{color:#4e5968;font-weight:400}
+.step .ss{font-size:10px;color:var(--muted);height:13px;overflow:hidden;max-width:100%;text-overflow:ellipsis;white-space:nowrap}
+.step.next .ss{color:#ff8a9b;font-weight:700;text-transform:uppercase}
+@media (max-width:700px){
+  ol.steps{grid-template-columns:1fr;gap:0;padding-left:14px}
+  ol.steps::before{left:27px;right:auto;top:10px;bottom:10px;width:2px;height:auto}
+  .step button{flex-direction:row;justify-content:flex-start;gap:10px;padding:7px 6px}
+  .step .sl{font-size:14px;flex:1;text-align:left;margin:0}
+  .step .st{font-size:14px}
+  .step .ss{width:60px;text-align:right}
+}
+.steppanel{margin:6px 14px 4px;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:10px 12px}
+.sp-h{display:flex;gap:10px;align-items:baseline;margin-bottom:8px}
+.sp-h b{font-size:16px}
+.sp-h .x{margin-left:auto;padding:2px 9px}
+.sp-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sp-row .or{color:var(--muted);font-size:13px}
+.sp-row input[type=time]{font-family:var(--mono)}
+.sp-radio{display:flex;flex-direction:column;gap:2px;max-height:220px;overflow:auto}
+.rtx{text-align:left;font-family:var(--mono);font-size:12px;padding:5px 8px;border:none;border-radius:6px}
+.rtx:hover{background:var(--panel2)}
+.rtx .tt{color:var(--muted);margin-right:6px}
+.durs{display:flex;gap:18px;flex-wrap:wrap;padding:8px 14px 10px;font-size:13px;color:var(--muted)}
+.durs b{color:var(--text);font-family:var(--mono)}
+.ocall .body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;padding:4px 14px 10px;border-top:1px solid var(--line)}
+@media (max-width:800px){.ocall .body{grid-template-columns:1fr}}
+.ocall .lab{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 4px}
+.ocall textarea{min-height:80px;resize:vertical}
+.radiobox{margin-top:10px}
+.radiobox summary{cursor:pointer;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px}
+.radio{border:1px solid var(--line);border-radius:8px;max-height:260px;overflow:auto;background:var(--bg)}
+.radio div{display:grid;grid-template-columns:62px 1fr auto;gap:6px;padding:5px 8px;border-bottom:1px dashed #222a34;font-size:12px;align-items:center}
+.radio .tt{font-family:var(--mono);color:var(--muted)}
+.radio .tx{font-family:var(--mono)}
+.ocall .foot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 14px 12px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.ocrow{display:grid;grid-template-columns:70px minmax(0,1fr) 130px 150px 20px;gap:10px;align-items:center;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:8px}
+.ocrow:hover{border-color:#4a5666}
+.ocrow .d{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.ocrow .n{font-size:12px;color:var(--muted)}
+.ocrow .n b{color:var(--text);font-family:var(--mono)}
+.ocrow .o{font-size:13px}
+.ocrow .chev{color:var(--muted)}
+.muted{color:var(--muted)}
+@media (max-width:700px){.ocrow{grid-template-columns:56px minmax(0,1fr) 20px}.ocrow .n,.ocrow .o{display:none}}
+#onCallBar{max-width:1200px;margin:12px auto 0;padding:0 16px;display:flex;flex-direction:column;gap:8px}
+#onCallBar:empty{display:none}
+body.view-calls #onCallBar{display:none}
+.oncall{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:linear-gradient(90deg,rgba(165,28,48,.35),var(--panel));border:1px solid var(--crimson-2);border-radius:8px;padding:10px 12px}
+.oncall .w{flex:1;min-width:200px}
+.oncall .pulse{width:10px;height:10px;border-radius:50%;background:var(--crimson-2);animation:pl 1.4s infinite}
+@keyframes pl{0%{box-shadow:0 0 0 0 rgba(255,59,85,.6)}70%{box-shadow:0 0 0 10px rgba(255,59,85,0)}100%{box-shadow:0 0 0 0 rgba(255,59,85,0)}}
+.inc .respond{align-self:flex-start;padding:4px 10px;font-size:12px}
+.inc .respond.linked{color:#8fdcb3;border-color:rgba(63,191,127,.45)}
+.call .tx.filtered{color:#5c6878;font-style:italic}
+.acu{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.06em;padding:2px 7px;border-radius:5px;white-space:nowrap;border:1px solid}
+.acu.high{background:#ff3b55;border-color:#ff3b55;color:#fff}
+.acu.low{background:transparent;border-color:#5c6878;color:#b8c2ce}
+.acu.unk{background:transparent;border-color:var(--line);color:var(--muted);font-weight:600}
+.acu-why{font-size:12px;color:var(--muted)}
+.alert-big .acu{font-size:14px;padding:4px 10px;margin:2px 0 6px}
+.inc .x{margin-left:4px;padding:0 7px;font-size:13px;line-height:20px;border:none;background:transparent;color:var(--muted)}
+.inc .x:hover{color:#fff;background:var(--panel2)}
+.ocall.hi{box-shadow:inset 4px 0 0 #ff3b55}
+.trash{padding:4px 9px;font-size:15px}
+.linkbtn{all:unset;cursor:pointer;display:block;margin:2px 14px 0;font-size:12px;color:var(--muted);text-decoration:underline}
+.linkbtn:hover{color:var(--text)}
+.askout{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 14px;padding:10px 12px;border:1px solid var(--amber);border-radius:10px;background:rgba(240,160,32,.08)}
+.askout select{width:auto;min-width:220px}
+.more-details{border-top:1px solid var(--line);margin-top:4px}
+.more-details>summary{cursor:pointer;padding:10px 14px;font-size:13px;color:var(--muted);list-style:none}
+.more-details>summary::-webkit-details-marker{display:none}
+.more-details>summary::before{content:"▸ "}
+.more-details[open]>summary::before{content:"▾ "}
+.more-details .body{border-top:none}
+.more-details .foot{padding:4px 14px 12px}
+select.acusel{width:auto;font-size:11px;font-weight:800;letter-spacing:.05em;padding:2px 6px;border-radius:5px}
+select.acusel.high{background:#ff3b55;border-color:#ff3b55;color:#fff}
+select.acusel.low{color:#b8c2ce;border-color:#5c6878}
+.ocall .sub{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.rp-pill{display:inline-flex;gap:8px;align-items:center}
+.linkpill{all:unset;cursor:pointer}
+.linkpill:hover{text-decoration:underline}
+#rpPillStop{font-weight:700;color:#fff;background:var(--crimson);padding:0 7px;border-radius:999px}
+.aisum{font-size:13px;color:var(--text);background:rgba(255,255,255,.04);border-left:3px solid #4a5666;padding:4px 8px;border-radius:4px;margin:4px 0;line-height:1.35}
+.aisum.big{font-size:15px;margin:6px 0 10px}
+.ainot{font-size:12px;color:#ffd28a}
+.ainot .x{border:1px solid var(--line);font-size:11px;padding:0 6px;margin-left:6px}
+.mergenote{font-size:12px;color:#a9cbff}
+.mergesel{width:auto;max-width:100%;font-size:12px;padding:3px 6px;color:var(--muted)}
+.alerts-list .a .h{display:flex;align-items:flex-start;gap:6px}
+.alerts-list .a .ax{margin-left:auto;padding:0 7px;font-size:12px;line-height:20px;border:none;background:transparent;color:var(--muted)}
+.alerts-list .a .ax:hover{color:#fff;background:var(--panel2)}
+.newcall{background:var(--panel);border:1px solid var(--crimson-2);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.nc-head{display:flex;align-items:center;margin-bottom:8px}
+.nc-head b{font-size:16px;margin-right:auto}
+.nc-head .x{padding:2px 9px}
+.nc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+@media (max-width:700px){.nc-grid{grid-template-columns:1fr}}
+.nc-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.nc-grid label input,.nc-grid label textarea{font-size:15px}
+.nc-grid .wide{grid-column:1/-1}
+.nc-row{display:flex;flex-direction:column;gap:4px}
+.nc-lab{font-size:12px;color:var(--muted)}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{padding:5px 10px;font-size:13px}
+.seg button.on{background:var(--crimson);border-color:var(--crimson);color:#fff}
+.nc-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.srcchip{font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);color:#b8c2ce}
+header{align-items:flex-start;justify-content:space-between}
+.hleft{display:flex;flex-direction:column;gap:6px;min-width:0}
+.hright{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:auto}
+@media (max-width:700px){.hright{align-items:stretch;width:100%}.hright .allchk{align-self:flex-end}}
+body.harvard-only #feedCount{display:none}
+.call{grid-template-columns:92px 1fr auto!important}
+.call .tx{font-family:inherit!important;font-size:15px!important}
+.inc .respond:not(.linked){background:var(--crimson);border-color:var(--crimson);color:#fff;font-weight:700;font-size:14px!important;padding:7px 14px!important}
+.alerts-list .a .s[style*="var(--mono)"]{font-family:inherit!important;font-size:14px}
+.allchk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;user-select:none}
+.allchk input{width:auto;margin:0;accent-color:var(--crimson)}
+body.harvard-only .filters,body.harvard-only #unitStrip,body.harvard-only .board-foot{display:none!important}
+.card h2,.board-card h2{font-size:12px}
+/* feedback: right / wrong */
+.fbb{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.fbb .row1{display:flex;gap:4px}
+.fbb button{padding:3px 8px;font-size:12px;background:transparent;color:var(--muted)}
+.fbb button:hover{color:var(--text);border-color:#4a5666}
+.fbchip{font-size:11px;padding:1px 6px;border-radius:5px;border:1px solid var(--line);color:var(--muted);cursor:pointer;background:transparent}
+.fbchip.ok{color:#8fdcb3;border-color:rgba(63,191,127,.45)}
+.fbchip.fix{color:#a9cbff;border-color:rgba(106,168,255,.5)}
+.heard{font-size:12px;color:var(--muted);margin-top:2px}
+.fbedit{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.fbedit input{flex:1 1 260px;font-size:15px}
+.fbedit .hint{margin:0;width:100%}
+.alv{display:flex;gap:6px;margin-top:6px}
+.alv button{padding:3px 9px;font-size:12px}
+.alv .chip{font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px}
+.alv .chip.real{background:rgba(63,191,127,.15);color:#8fdcb3}
+.alv .chip.false{background:rgba(255,255,255,.06);color:var(--muted)}
+.acc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:14px}
+.acc-tile{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.acc-tile b{display:block;font-size:24px}
+.acc-tile span{font-size:12px;color:var(--muted)}
+.acc-list{font-size:13px;margin:4px 0 12px;padding-left:18px}
+.autofix{font-size:11px;color:#a9cbff;margin-left:6px;cursor:help}
+.geo{font-size:13px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.geo b{color:var(--text);font-weight:600}
+.geo a,.geo .lnk{color:#a9cbff;cursor:pointer;text-decoration:underline;background:none;border:none;padding:0;font-size:13px}
+#mapDlg{width:min(900px,96vw)}
+.map-info a{color:#a9cbff}
+#mapBox{height:min(60vh,520px);border-radius:8px;border:1px solid var(--line);background:#e5e3df}
+.map-info{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:14px}
+.map-info .big{font-size:20px;font-weight:700}
+#demoBar{max-width:1200px;margin:12px auto 0;padding:10px 14px;border:2px dashed #b48cff;border-radius:8px;background:rgba(180,140,255,.08)}
+#demoBar[hidden]{display:none}
+.db-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.db-badge{font-weight:800;letter-spacing:.12em;background:#b48cff;color:#0d1117;padding:2px 8px;border-radius:6px}
+.db-msg{font-size:13px;color:#d7c2ff}
+.db-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.db-f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.db-f select{min-width:260px;max-width:100%}
+.db-f input{width:200px}
+.db-or{color:var(--muted);font-size:13px;padding-bottom:8px}
+.db-btns{display:flex;gap:6px}
+.db-prog{font-size:13px;color:#d7c2ff;margin-top:8px}
+.db-prog progress{width:100%;height:6px;accent-color:#b48cff}
+body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.3)}
+#demoClock{position:fixed;right:16px;bottom:16px;z-index:40;display:flex;gap:14px;align-items:flex-end;
+  background:rgba(13,17,23,.92);border:2px solid #b48cff;border-radius:10px;padding:10px 14px;box-shadow:0 6px 24px rgba(0,0,0,.45);
+  font-variant-numeric:tabular-nums}
+#demoClock[hidden]{display:none}
+#demoClock .dc{display:flex;flex-direction:column;line-height:1.1}
+#demoClock .dc-l{font-size:10px;font-weight:800;letter-spacing:.12em;color:#b48cff;text-transform:uppercase}
+#demoClock .dc-t{font-size:30px;font-weight:800;color:#fff}
+#demoClock .dc-s{font-size:12px;color:#d7c2ff}
+#demoClock.live{border-color:var(--crimson-2)}
+#demoClock.live .dc.rep,#demoClock:not(.live) .dc.real{display:none}
+#demoClock .dc.real .dc-l{color:var(--muted)}
+#demoClock.paused .dc.rep .dc-t{color:#ffd28a}
+@media (max-width:600px){#demoClock{right:8px;bottom:8px;padding:7px 10px;gap:10px}#demoClock .dc-t{font-size:22px}}
+@media (max-width:600px){.db-f input,.db-f select{width:100%;min-width:0}.db-row>*{flex:1 1 100%}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hleft"><div class="brand"><span class="dot"></span>Crimson EMS · Dispatch Watch</div>
+  <div class="pills" id="pills"></div></div>
+  <div class="hright">
+  <label class="allchk" title="Off: only Harvard calls are shown. On: every call on the radio, plus technical details."><input type="checkbox" id="showAll">Show non-Harvard calls</label>
+  <div class="controls">
+    <div class="viewtabs"><button id="tabLive" class="on">Live</button><button id="tabCalls">Our calls<span class="vbadge" id="callsBadge">0</span></button></div>
+    <button id="btnSound" class="primary" title="Browsers block sound until you click once">Turn on alarm sound</button>
+    <button id="btnMute" class="ghost" title="Mute alarm on this device">Mute</button>
+    <div class="more"><button id="btnMore" class="ghost">More ▾</button>
+      <div class="menu" id="moreMenu" hidden>
+        <button id="btnNotify">Turn on phone/desktop notifications</button>
+        <button id="btnReplay" title="Run a past time window through the matcher (no alarms, no pushes)">Replay a past hour</button>
+        <button id="btnAccuracy">Accuracy &amp; training</button>
+        <button id="btnSettings">Settings &amp; keywords</button>
+      </div></div>
+  </div></div>
+</header>
+
+<div id="demoBar" hidden>
+  <div class="db-top"><span class="db-badge">DEMO</span>
+    <span class="db-msg">Recorded radio played back as if it were live. Nothing here reaches phones or the real call log.</span></div>
+  <div class="db-row">
+    <label class="db-f">Play from a past alarm<select id="dbMoment"><option value="">Choose a moment…</option></select></label>
+    <span class="db-or">or</span>
+    <label class="db-f">From<input type="datetime-local" id="dbFrom"></label>
+    <label class="db-f">To<input type="datetime-local" id="dbTo"></label>
+    <div class="db-f"><span>Speed</span><div class="seg" id="dbSpeed"></div></div>
+    <div class="db-btns"><button class="primary" id="dbStart">▶ Play</button><button id="dbPause" hidden>Pause</button><button id="dbStop" hidden>Stop</button></div>
+  </div>
+  <div class="db-prog" id="dbProg"></div>
+</div>
+<div id="demoClock" hidden>
+  <div class="dc rep"><span class="dc-l">Replay time</span><span class="dc-t" id="dcRep">--:--:--</span><span class="dc-s" id="dcRepSub">not playing</span></div>
+  <div class="dc real"><span class="dc-l">Time</span><span class="dc-t" id="dcReal">--:--:--</span><span class="dc-s" id="dcRealSub"></span></div>
+</div>
+<div class="banner" id="banner"><div class="inner" id="bannerInner"></div></div>
+<div id="active"></div>
+<div id="onCallBar"></div>
+
+<div class="board-wrap">
+  <section class="board-card">
+    <h2><span id="boardTitle">Call board</span> <span id="boardCount" style="text-transform:none;letter-spacing:0;font-weight:400"></span>
+      <span class="sp"><label style="display:flex;gap:5px;align-items:center;font-size:12px"><input type="checkbox" id="showClosed" style="width:auto">Show closed</label></span></h2>
+    <div id="incGrid"><div class="board-empty">No active calls yet. Dispatches show up here as they're heard.</div></div>
+    <div class="board-foot">Built automatically from radio transcripts, so expect some misses. A <b>?</b> or dashed outline means the unit or status was inferred from context because the transmission didn't name the unit.</div>
+  </section>
+</div>
+
+<main>
+  <section class="card">
+    <h2><span id="feedTitle">Radio traffic</span> <span class="sp" id="feedCount"></span></h2>
+    <div class="filters" id="filters"></div>
+    <div class="feed" id="feed"><div class="empty-state">Waiting for traffic…</div></div>
+  </section>
+  <section class="card">
+    <h2>Harvard alerts <span class="sp"><button class="play" id="btnTest" title="Fire a test alarm on this dashboard">Test alarm</button></span></h2>
+    <div class="alerts-list" id="alerts"><div class="empty-state">No Harvard calls yet.</div></div>
+  </section>
+</main>
+<section id="callsView">
+  <div class="calls-head">
+    <h1>Our calls</h1>
+    <input id="callSearch" placeholder="Search calls…">
+    <button id="newCall" class="primary" title="Log a call that didn't come through the radio">＋ Call not on the radio</button>
+    <button id="exportCsv">Export CSV</button>
+  </div>
+  <div class="suggest" id="suggest" hidden></div>
+  <section class="newcall" id="newCallBox" hidden>
+    <div class="nc-head"><b>Log a call not heard on the radio</b><button class="ghost x" id="ncClose" title="Close">✕</button></div>
+    <div class="nc-grid">
+      <label>What happened?<input id="ncWhat" list="ncWhatList" placeholder="e.g. Fall, ETOH, Lift assist, Laceration"></label>
+      <datalist id="ncWhatList"><option>Fall</option><option>ETOH</option><option>Sick person</option><option>Lift assist</option>
+        <option>Laceration</option><option>Allergic reaction</option><option>Difficulty breathing</option><option>Chest pain</option>
+        <option>Seizure</option><option>Syncope</option><option>Psych</option><option>Sports injury</option><option>Standby</option></datalist>
+      <label>Where?<input id="ncWhere" placeholder="e.g. Annenberg, Widener steps, Quincy House entryway C"></label>
+      <div class="nc-row"><span class="nc-lab">How did you get it?</span><div class="seg" id="ncSource"></div></div>
+      <div class="nc-row"><span class="nc-lab">Acuity</span><div class="seg" id="ncAcuity">
+        <button data-v="high">High</button><button data-v="low">Low</button><button data-v="" class="on">Not sure</button></div></div>
+      <div class="nc-row"><span class="nc-lab">When did it start?</span>
+        <div class="seg" id="ncWhen"><button data-v="now" class="on">Just now</button><button data-v="earlier">Earlier…</button></div>
+        <input type="time" step="60" id="ncTime" hidden style="max-width:140px"></div>
+      <label class="wide">Notes (optional)<textarea id="ncNotes" rows="2" placeholder="Anything to remember"></textarea></label>
+    </div>
+    <div class="nc-actions">
+      <button class="primary" id="ncStart">Start call: we're on it now</button>
+      <button id="ncPast">Log it: call is already over</button>
+      <span class="hint" style="margin:0">“Already over” opens the call so you can fill in the times.</span>
+    </div>
+  </section>
+  <div id="callsList"></div>
+</section>
+<p class="disclaimer">Unofficial: built from public radio audio with automatic transcription. It can lag by up to a minute, miss calls or mishear words, so don't rely on it alone.</p>
+
+<dialog id="mapDlg">
+  <div class="dlg-head"><h3>Map</h3><button id="mapClose" class="ghost">Close</button></div>
+  <div class="dlg-body"><div class="map-info" id="mapInfo"></div><div id="mapBox"></div>
+    <p class="hint">Distance and times are estimates from a straight line plus typical street detours. Use Directions for a real route.</p></div>
+</dialog>
+<dialog id="accDlg">
+  <div class="dlg-head"><h3>Accuracy &amp; training</h3><button id="accClose" class="ghost">Close</button></div>
+  <div class="dlg-body" id="accBody"></div>
+</dialog>
+<dialog id="dlg">
+  <div class="dlg-head"><h3>Settings</h3><button id="dlgClose" class="ghost">Close</button></div>
+  <div class="dlg-body">
+    <div class="tabs" id="tabs">
+      <button data-tab="rules" class="on">Locations &amp; phrases</button>
+      <button data-tab="ranges">Address ranges</button>
+      <button data-tab="tgs">Talkgroups</button>
+      <button data-tab="tryit">Try the matcher</button>
+      <button data-tab="base">Map &amp; base</button>
+      <button data-tab="device">This device</button>
+    </div>
+    <div data-pane="rules">
+      <p class="hint"><b>High</b> = full alarm + phone push. <b>Medium</b> = amber "possible" alert, chime only. Aliases catch common mishearings. Matching is fuzzy, so small transcription errors still match. Short terms (4 letters or fewer, e.g. HUPD) must match exactly.</p>
+      <div class="row-gap"><input id="ruleSearch" placeholder="Filter…" style="max-width:240px"><button id="addRule">+ Add</button></div>
+      <table><thead><tr><th style="width:24%">Term</th><th>Aliases (comma-separated)</th><th style="width:100px">Level</th><th style="width:150px">Category</th><th style="width:40px"></th></tr></thead><tbody id="rulesBody"></tbody></table>
+    </div>
+    <div data-pane="ranges" hidden>
+      <p class="hint">Matches "&lt;number&gt; &lt;street&gt;" when the number falls in range, e.g. "1350 Mass Ave".</p>
+      <div class="row-gap"><button id="addRange">+ Add</button></div>
+      <table><thead><tr><th>Label</th><th>Street</th><th>Aliases</th><th style="width:80px">From</th><th style="width:80px">To</th><th style="width:100px">Level</th><th style="width:40px"></th></tr></thead><tbody id="rangesBody"></tbody></table>
+    </div>
+    <div data-pane="tgs" hidden>
+      <p class="hint">OpenMHz "cambridge" system talkgroups to listen to. Others you may want: 1053 CFD Citywide, 1327 CFD Station Alerting, 1061 PD–FD Inter-agency.</p>
+      <div class="row-gap"><button id="addTg">+ Add</button></div>
+      <table><thead><tr><th style="width:120px">TG #</th><th>Name</th><th style="width:40px"></th></tr></thead><tbody id="tgBody"></tbody></table>
+      <p class="hint" style="margin-top:14px">Whisper vocabulary hint (helps it spell local names):</p>
+      <textarea id="prompt" rows="3"></textarea>
+    </div>
+    <div data-pane="tryit" hidden>
+      <p class="hint">Paste a sentence to see what would trigger (uses the saved rules).</p>
+      <textarea id="tryText" rows="3">Pro 2 respond to Canaday Hall in the Yard for a 19 year old intox, HUPD requesting a private response</textarea>
+      <div class="row-gap"><button id="tryBtn">Check</button></div>
+      <div id="tryOut" class="hint"></div>
+    </div>
+    <div data-pane="base" hidden>
+      <p class="hint">Where your crew waits on shift. Call cards show the distance and an estimated walk / drive time from here.</p>
+      <div class="row-gap"><label style="min-width:120px">Base address</label><input id="baseAddr" style="max-width:420px" placeholder="e.g. 14 Story Street, Cambridge, MA"></div>
+      <div class="row-gap"><label style="min-width:120px">Name (optional)</label><input id="baseLabel" style="max-width:260px" placeholder="e.g. Crimson EMS base"></div>
+      <div class="row-gap"><button id="saveBase" class="primary">Save base</button><span class="hint" id="baseOut"></span></div>
+    </div>
+    <div data-pane="device" hidden>
+      <div class="row-gap"><label style="min-width:120px">Your name (shown on acks &amp; call times)</label><input id="myName" style="max-width:260px" placeholder="e.g. Kafka"></div>
+      <div class="row-gap"><label style="min-width:120px">Alarm volume</label><input id="vol" type="range" min="0" max="1" step="0.05" style="max-width:260px"></div>
+      <div class="row-gap"><label><input type="checkbox" id="mediumSound" style="width:auto"> Chime for medium ("possible") alerts</label></div>
+      <div class="row-gap"><label><input type="checkbox" id="repeatAlarm" style="width:auto"> Repeat alarm until acknowledged</label></div>
+      <div class="row-gap"><button id="testPush">Send test push to phones</button><span class="hint" id="testPushOut"></span></div>
+    </div>
+    <div class="row-gap" style="justify-content:flex-end;border-top:1px solid var(--line);padding-top:12px;margin-top:14px">
+      <span class="hint" id="saveOut" style="margin:0 auto 0 0"></span>
+      <button id="saveCfg" class="primary">Save rules</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="rdlg">
+  <div class="dlg-head"><h3>Replay a past window</h3><button id="rdlgClose" class="ghost">Close</button></div>
+  <div class="dlg-body">
+    <p class="hint">Pulls past calls from OpenMHz and runs them through transcription and your current rules, exactly like live. Replays never sound the alarm or send pushes, and live calls always go first. Times are Eastern; up to 6 hours at once.</p>
+    <div class="rp-form">
+      <label>From<input type="datetime-local" id="rpFrom"></label>
+      <label>To<input type="datetime-local" id="rpTo"></label>
+      <button id="rpRun" class="primary">Run replay</button>
+      <button id="rpCancel" hidden>Cancel</button>
+    </div>
+    <div class="rp-status" id="rpStatus"></div>
+    <div class="rp-grid">
+      <div class="rp-box"><h4>Transcripts <span class="sp"><button class="ghost small" id="rpOrder" title="Change the order">Newest first ▾</button><label style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="rpEmpty" style="width:auto">show empty</label></span></h4><div class="rp-scroll" id="rpCalls"></div></div>
+      <div class="rp-box"><h4>Would have alerted</h4><div class="rp-scroll" id="rpAlerts"></div></div>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+<audio id="player" preload="none"></audio>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const store = {
+    get(k, d){ try { const v = localStorage.getItem("cdw." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v){ try { localStorage.setItem("cdw." + k, JSON.stringify(v)); } catch {} }
+  };
+  const fmtTime = ms => new Date(ms).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"});
+  const ago = ms => { const s = Math.round((Date.now() - ms) / 1000); if (s < 60) return s + "s ago"; if (s < 3600) return Math.round(s/60) + "m ago"; return Math.round(s/3600) + "h ago"; };
+
+  let state = {calls: [], alerts: [], status: {}, talkgroups: {}};
+  let config = null;
+  let muted = store.get("muted", false);
+  let hiddenTgs = new Set(store.get("hiddenTgs", []));
+  const ackedLocal = new Set(store.get("ackedLocal", []));
+  const _ackAdd = ackedLocal.add.bind(ackedLocal);
+  ackedLocal.add = id => { _ackAdd(id); store.set("ackedLocal", [...ackedLocal].slice(-200)); return ackedLocal; };
+
+  // ------------------------------------------------------------------ sound
+  let ctx = null, alarmTimer = null;
+  function audioCtx(){ if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state === "suspended") ctx.resume(); return ctx; }
+  function tone(freq, start, dur, type="square", gain){
+    const c = audioCtx(), o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.value = freq;
+    const v = (gain ?? store.get("vol", 0.8)) * 0.5;
+    g.gain.setValueAtTime(0, c.currentTime + start);
+    g.gain.linearRampToValueAtTime(v, c.currentTime + start + 0.01);
+    g.gain.setValueAtTime(v, c.currentTime + start + dur - 0.03);
+    g.gain.linearRampToValueAtTime(0, c.currentTime + start + dur);
+    o.connect(g).connect(c.destination); o.start(c.currentTime + start); o.stop(c.currentTime + start + dur + 0.02);
+  }
+  function alarmHigh(){ if (muted || !ctx) return; for (let i = 0; i < 6; i++){ tone(i % 2 ? 660 : 990, i * 0.28, 0.26); } if (navigator.vibrate) navigator.vibrate([400,150,400,150,400]); }
+  function chime(){ if (muted || !ctx || !store.get("mediumSound", true)) return; tone(880, 0, .18, "sine"); tone(1320, .2, .3, "sine"); }
+  function startAlarmLoop(){ stopAlarmLoop(); alarmHigh(); if (store.get("repeatAlarm", true)) alarmTimer = setInterval(alarmHigh, 6000); }
+  function stopAlarmLoop(){ if (alarmTimer) clearInterval(alarmTimer); alarmTimer = null; }
+
+  $("#btnSound").onclick = () => { audioCtx(); tone(880, 0, .12, "sine"); $("#btnSound").textContent = "Sound on ✓"; $("#btnSound").classList.remove("primary"); store.set("soundOn", true); requestWakeLock(); };
+  function renderMute(){ $("#btnMute").textContent = muted ? "Unmute" : "Mute"; $("#btnMute").classList.toggle("primary", muted); }
+  $("#btnMute").onclick = () => { muted = !muted; store.set("muted", muted); if (muted) stopAlarmLoop(); renderMute(); };
+  renderMute();
+
+  // notifications
+  function renderNotifyBtn(){ const b = $("#btnNotify"); if (!("Notification" in window)) { b.hidden = true; return; } b.hidden = Notification.permission === "granted"; }
+  $("#btnNotify").onclick = async () => { try { await Notification.requestPermission(); } catch {} renderNotifyBtn(); };
+  renderNotifyBtn();
+  function notify(a){
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    try {
+      const n = new Notification((a.level === "high" ? "🚑 HARVARD CALL: " : "Possible Harvard call: ") + a.hits.map(h => h.term).join(", "),
+        {body: a.text, tag: a.id, requireInteraction: a.level === "high", renotify: true});
+      n.onclick = () => { window.focus(); n.close(); };
+    } catch {}
+  }
+
+  // keep screen awake on station display
+  let wakeLock = null;
+  async function requestWakeLock(){ try { if ("wakeLock" in navigator) { wakeLock = await navigator.wakeLock.request("screen"); } } catch {} }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && store.get("soundOn")) requestWakeLock(); });
+
+  // ------------------------------------------------------------------ acuity badge
+  function acuBadge(a, why, withWhy){
+    if (!a) return withWhy === "always" ? `<span class="acu unk">ACUITY ?</span>` : "";
+    const w = (why || []).join(", ");
+    return `<span class="acu ${a}" title="${esc(w)}">${a === "high" ? "HIGH ACUITY" : "LOW ACUITY"}</span>${withWhy && w ? ` <span class="acu-why">${esc(w)}</span>` : ""}`;
+  }
+  // ------------------------------------------------------------------ rendering
+  function highlight(text, hits){
+    let html = esc(text);
+    const words = new Set();
+    (hits || []).forEach(h => (h.heard || "").split(" ").forEach(w => { if (w.length > 1) words.add(w); }));
+    if (!words.size) return html;
+    const re = new RegExp("\\b(" + [...words].map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\b", "gi");
+    return html.replace(re, "<mark>$1</mark>");
+  }
+  function levelOf(hits){ if (!hits || !hits.length) return null; return hits.some(h => h.level === "high") ? "high" : "medium"; }
+
+  // "Show non-Harvard calls" (off by default): everything else is hidden to keep the screen simple
+  const showAll = () => store.get("showAll", false);
+  function applyMode(){
+    document.body.classList.toggle("harvard-only", !showAll());
+    $("#showAll").checked = showAll();
+    $("#feedTitle").textContent = "Radio traffic";
+    $("#boardTitle").textContent = showAll() ? "All calls now" : "Harvard calls now";
+  }
+  $("#showAll").onchange = e => { store.set("showAll", e.target.checked); applyMode(); renderFeed(); renderBoard(); renderPills(); };
+  function harvardAudio(){                    // every clip that belongs to a Harvard call on the board
+    const b = state.board || {}, set = new Set();
+    (b.incidents || []).concat(b.closed || []).filter(i => i.harvard).forEach(i => (i.timeline || []).forEach(e => e.audio_url && set.add(e.audio_url)));
+    return set;
+  }
+  function renderPills(){
+    const st = state.status || {}, p = [];
+    const age = st.last_call_ms ? Date.now() - st.last_call_ms : null;
+    if (st.last_poll_error && (!st.last_poll_ok || st.last_poll_error.at > st.last_poll_ok)) p.push(`<span class="pill bad">Feed error</span>`);
+    else if (st.last_poll_ok) p.push(`<span class="pill ok">● Listening</span>`);
+    else p.push(`<span class="pill warn">Connecting…</span>`);
+    if (age !== null) p.push(`<span class="pill ${age > 30*60e3 ? "warn" : ""}">Last radio ${ago(st.last_call_ms)}</span>`);
+    if (!showAll()) {                          // simple mode: just "is it working?"
+      if (!window.CRIMSON_DEMO && String(st.transcriber).startsWith("loading")) p.push(`<span class="pill warn">Starting up…</span>`);
+      if (st.queue > 10) p.push(`<span class="pill warn">Running behind</span>`);
+    } else {
+    p.push(`<span class="pill ${String(st.transcriber).startsWith("loading") ? "warn" : ""}">${esc(st.transcriber || "")}</span>`);
+    if (st.asr_sec != null) p.push(`<span class="pill ${st.asr_sec > 4 ? "warn" : ""}" title="Average transcription time over the last 30 clips">${st.asr_sec.toFixed(1)} s/clip</span>`);
+    if (st.queue > 3) p.push(`<span class="pill warn">${st.queue} clips waiting</span>`);
+    p.push(`<span class="pill ${st.push ? "ok" : ""}">Phone push ${st.push ? "on" : "off"}</span>`);
+    if (st.ai) { const on = /^(ready|busy|starting)/.test(st.ai);
+      p.push(`<span class="pill ${on ? "ok" : ""}" title="Claude reads each dispatch: ${esc(st.ai)}">${on ? (st.ai.startsWith("busy") ? "AI reading…" : "AI on") : "AI off"}</span>`); }
+    }
+    const R = window.__rpRun;
+    if (R) {
+      const t = ms => new Date(ms).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+      p.push(`<span class="pill warn rp-pill"><button class="linkpill" id="rpPillOpen" title="Open the Replay panel">Replaying past audio ${R.start ? t(R.start) + "–" + t(R.end) : ""} · ${R.state === "transcribing" ? R.done + "/" + R.total : "starting…"}</button><button class="linkpill" id="rpPillStop" title="Stop the replay">Stop</button></span>`);
+    }
+    if (!live) p.push(`<span class="pill bad">Dashboard disconnected</span>`);
+    $("#pills").innerHTML = p.join("");
+
+    // banner
+    let msg = "", bad = false;
+    if (!live) { msg = "Lost connection to the alert server. Reconnecting…"; bad = true; }
+    else if (st.last_poll_error && (!st.last_poll_ok || Date.now() - st.last_poll_ok > 60e3)) { msg = "Can't reach OpenMHz: " + esc(st.last_poll_error.msg) + ". Alerts are paused until it recovers."; bad = true; }
+    else if (age !== null && age > 45*60e3) msg = `No transmissions on monitored talkgroups for ${ago(st.last_call_ms).replace(" ago","")}. The OpenMHz uploader for this site may be offline, so check <a style="color:inherit" href="https://openmhz.com/system/cambridge" target="_blank" rel="noopener">openmhz.com/system/cambridge</a>.`;
+    $("#banner").classList.toggle("show", !!msg);
+    $("#bannerInner").className = "inner" + (bad ? " bad" : "");
+    $("#bannerInner").innerHTML = msg;
+  }
+
+  function renderFilters(){
+    const tgs = state.talkgroups || {};
+    $("#filters").innerHTML = Object.entries(tgs).map(([k, v]) =>
+      `<label><input type="checkbox" data-tg="${esc(k)}" ${hiddenTgs.has(k) ? "" : "checked"}>${esc(v)}</label>`).join("") +
+      `<label><input type="checkbox" id="onlyText" ${store.get("onlyText", true) ? "checked" : ""}>Hide empty clips</label>`;
+    $("#filters").querySelectorAll("input[data-tg]").forEach(i => i.onchange = () => { i.checked ? hiddenTgs.delete(i.dataset.tg) : hiddenTgs.add(i.dataset.tg); store.set("hiddenTgs", [...hiddenTgs]); renderFeed(); });
+    $("#onlyText").onchange = e => { store.set("onlyText", e.target.checked); renderFeed(); };
+  }
+
+  // ---- crew feedback (Right / Fix) — builds the training set and the "learned fixes"
+  let fb = {clips: {}, alerts: {}, stats: null}, fbEdit = null, feedPending = false;
+  const fbKey = c => (String(c.id || "").replace("demo-", "") || (c.audio_url || "").split("/").pop() || "").replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 80);
+  async function loadFeedback(){ try { const r = await fetch("/api/feedback"); if (r.ok) { fb = await r.json(); } } catch {} }
+  function heardText(c){ return c.text || c.raw_text || ""; }
+  function callRow(c){
+    const lvl = levelOf(c.hits), k = fbKey(c), v = fb.clips[k];
+    const tags = (c.hits || []).map(h => `<span class="tag ${h.level}">${esc(h.term)}${h.from_context ? " (context)" : ""}${h.suspect ? " (unclear audio)" : ""}</span>`).join("");
+    let txt = c.text ? highlight(c.text, c.hits) : (c.filtered ? `unclear audio · “${esc(c.raw_text || "")}”` : (c.error ? "transcription failed" : "(no speech)"));
+    let heard = "";
+    if (v && v.verdict === "wrong") { heard = `<div class="heard">Whisper heard: “${esc(heardText(c))}”</div>`; txt = esc(v.text); }
+    const fixed = (c.fixed || []).length ? `<span class="autofix" title="Auto-corrected from crew fixes. Whisper heard: “${esc(c.asr_text || "")}”">auto-fixed</span>` : "";
+    const editing = fbEdit === k;
+    const body = editing
+      ? `<div class="fbedit"><input data-fbinput="${esc(k)}" value="${esc(v && v.verdict === "wrong" ? v.text : heardText(c))}" placeholder="Type exactly what was said">
+           <button class="primary small" data-fbsave="${esc(k)}">Save</button><button class="small" data-fbcancel>Cancel</button>
+           <span class="hint">Press ▶ to listen. Type exactly what was said, or leave it empty if nobody spoke.</span></div>`
+      : `<div class="tx ${c.text || (v && v.verdict === "wrong") ? "" : (c.filtered ? "empty filtered" : "empty")}">${txt}${fixed}</div>${heard}`;
+    const btns = !c.audio_url ? "" : v
+      ? `<button class="fbchip ${v.verdict === "right" ? "ok" : "fix"}" data-fbfix="${esc(k)}" title="Change">${v.verdict === "right" ? "✓ right" : "corrected"}</button>`
+      : `<div class="row1"><button data-fbok="${esc(k)}" title="The transcript is right">✓</button><button data-fbfix="${esc(k)}" title="Correct what Whisper heard">Fix</button></div>`;
+    return `<div class="call ${lvl ? "hit-" + lvl : ""} ${c.backfill ? "backfill" : ""}" data-k="${esc(k)}">
+      <div class="t">${fmtTime(c.time)}</div>
+      <div><div class="tg">${esc(c.talkgroup_name)}${c.rewind ? " · while monitor was off" : (c.backfill ? " · earlier" : "")}</div>${body}${editing ? "" : tags}</div>
+      <div class="fbb">${c.audio_url ? `<button class="play" data-audio="${esc(c.audio_url)}">▶</button>` : ""}${btns}</div></div>`;
+  }
+  const callByKey = k => [...state.calls].reverse().find(c => fbKey(c) === k);
+  async function sendClipFeedback(k, corrected){
+    const c = callByKey(k); if (!c) return;
+    const r = await fetch("/api/feedback/clip", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({id: c.id, audio_url: c.audio_url, heard: heardText(c), corrected, by: store.get("name", ""),
+                            talkgroup_name: c.talkgroup_name, time: c.time})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(j.error || "Couldn't save"); return; }
+    fb.clips[k] = {verdict: j.verdict, text: j.text};
+    fbEdit = null; feedPending = false; renderFeed();
+    toast(j.verdict === "right" ? "Marked right. Thanks!" : "Correction saved. It will be used to train Whisper.");
+  }
+  document.addEventListener("click", e => {
+    const ok = e.target.closest("[data-fbok]"), fix = e.target.closest("[data-fbfix]"), save = e.target.closest("[data-fbsave]"), cancel = e.target.closest("[data-fbcancel]");
+    if (ok) { sendClipFeedback(ok.dataset.fbok, null); }
+    else if (fix) { fbEdit = fix.dataset.fbfix; feedPending = false; renderFeed(); const i = document.querySelector(`[data-fbinput="${CSS.escape(fbEdit)}"]`); if (i) { i.focus(); i.select(); } }
+    else if (save) { const i = document.querySelector(`[data-fbinput="${CSS.escape(save.dataset.fbsave)}"]`); sendClipFeedback(save.dataset.fbsave, i ? i.value : ""); }
+    else if (cancel) { fbEdit = null; feedPending = false; renderFeed(); }
+  });
+  document.addEventListener("keydown", e => {
+    const i = e.target.closest && e.target.closest("[data-fbinput]"); if (!i) return;
+    if (e.key === "Enter") { e.preventDefault(); sendClipFeedback(i.dataset.fbinput, i.value); }
+    if (e.key === "Escape") { fbEdit = null; feedPending = false; renderFeed(); }
+  });
+  function renderFeed(){
+    if (fbEdit && document.querySelector("#feed [data-fbinput]")) { feedPending = true; return; }   // don't wipe a correction being typed
+    const onlyText = store.get("onlyText", true), all = showAll();
+    const rows = state.calls.filter(c => (!all || !hiddenTgs.has(String(c.talkgroup)))
+        && (!onlyText || c.text || (c.hits && c.hits.length))).slice(-150).reverse();
+    $("#feed").innerHTML = rows.length ? rows.map(callRow).join("") : `<div class="empty-state">Waiting for radio traffic…</div>`;
+    $("#feedCount").textContent = state.status.calls_processed ? state.status.calls_processed + " clips" : "";
+  }
+
+  function alertItem(a){
+    const acked = a.acked_by ? `acknowledged by ${esc(a.acked_by)}` : (a.level === "high" ? "<b style='color:#ff8a9b'>not acknowledged</b>" : "");
+    return `<div class="a ${a.level}" data-alert="${a.id}"><div class="h">${esc(a.hits.map(h => h.term).join(", "))}${a.test ? "" : `<button class="ax" data-dismissalert="${a.id}" title="Not a real call: remove from this list">✕</button>`}</div>
+      <div class="s" style="margin:3px 0">${acuBadge(a.acuity, a.acuity_why, "always")}</div>
+      ${a.ai_summary ? `<div class="aisum"><b>Summary:</b> ${esc(a.ai_summary)}</div>` : ""}
+      <div class="s">${fmtTime(a.time)} · ${esc(a.talkgroup_name)}${a.while_off ? " · <b>while monitor was off</b>" : ""} · ${acked}</div>
+      <div class="s" style="font-family:var(--mono);color:var(--text);margin-top:3px">${esc(a.text).slice(0, 180)}</div>${a.test ? "" : alertVerdict(a)}</div>`;
+  }
+  function alertVerdict(a){
+    const v = a.verdict || fb.alerts[a.id];
+    return `<div class="alv">${v ? `<span class="chip ${v}">${v === "real" ? "✓ Real call" : "False alarm"}</span>`
+      : `<button data-alv="real" data-aid="${a.id}">Real call</button><button data-alv="false" data-aid="${a.id}">False alarm</button>`}</div>`;
+  }
+  async function sendAlertVerdict(id, verdict){
+    const r = await fetch("/api/feedback/alert", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({id, verdict, by: store.get("name", "")})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return toast(j.error || "Couldn't save");
+    fb.alerts[id] = verdict; renderAlerts();
+    if (verdict === "false" && activeId === id) { stopAlarmLoop(); $("#active").classList.remove("show"); activeId = null; ackedLocal.add(id); }
+    toast(verdict === "real" ? "Thanks: marked as a real call" : "Marked as a false alarm and removed");
+  }
+  document.addEventListener("click", e => { const b = e.target.closest("[data-alv]"); if (!b) return; e.stopPropagation(); b.disabled = true; sendAlertVerdict(b.dataset.aid, b.dataset.alv); }, true);
+  function renderAlerts(){
+    const list = [...state.alerts].filter(a => !a.dismissed).reverse();
+    $("#alerts").innerHTML = list.length ? list.map(alertItem).join("") : `<div class="empty-state">No Harvard calls yet. Press <b>Test alarm</b> to check the sound on this device.</div>`;
+    $("#alerts").querySelectorAll("[data-alert]").forEach(el => el.onclick = () => showActive(state.alerts.find(a => a.id === el.dataset.alert), false));
+    $("#alerts").querySelectorAll("[data-dismissalert]").forEach(btn => btn.onclick = async ev => {
+      ev.stopPropagation(); btn.disabled = true;
+      const r = await fetch("/api/alert/dismiss", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({id: btn.dataset.dismissalert, by: store.get("name", "")})});
+      if (r.ok) toast("Alert removed");
+    });
+  }
+
+  let activeId = null;
+  function showActive(a, fresh){
+    if (!a) return;
+    activeId = a.id;
+    const unacked = !a.acked_by && !ackedLocal.has(a.id);
+    const tx = (a.transmissions || []).map(t => `<div>${fmtTime(t.time)} [${esc(t.talkgroup_name)}] ${esc(t.text || "(no speech)")} ${t.audio_url ? `<button class="play" data-audio="${esc(t.audio_url)}">▶</button>` : ""}</div>`).join("");
+    $("#active").innerHTML = `<div class="alert-big ${a.level} ${unacked && a.level === "high" ? "flash" : ""}">
+      <div class="kicker">${a.while_off ? "HAPPENED WHILE THE MONITOR WAS OFF · " : ""}${a.test ? "TEST · " : ""}${a.level === "high" ? "Ambulance call at a Harvard location" : "Possible Harvard call"} · ${fmtTime(a.time)} (${ago(a.time)})</div>
+      <div class="terms">${esc(a.hits.map(h => h.term).join(" · "))}</div>
+      ${a.acuity ? `<div>${acuBadge(a.acuity, a.acuity_why, true)}</div>` : ""}
+      ${a.ai_summary ? `<div class="aisum big"><b>Summary:</b> ${esc(a.ai_summary)}</div>` : ""}
+      <div class="quote">“${highlight(a.text, a.hits)}”</div>
+      <div class="meta">${esc(a.talkgroup_name)}${a.acked_by ? ` · acknowledged by ${esc(a.acked_by)} at ${fmtTime(a.acked_at)}` : ""}</div>
+      <div class="row">
+        ${!a.acked_by ? `<button class="ack" id="ackBtn">ACKNOWLEDGE</button>` : ""}
+        ${!a.test ? `<button class="primary" id="respondBtn" style="padding:10px 16px;font-weight:700">WE'RE RESPONDING</button>` : ""}
+        ${a.audio_url ? `<button class="play" data-audio="${esc(a.audio_url)}" style="padding:10px 14px">▶ Play audio</button>` : ""}
+        <button class="ghost" id="dismissBtn">Dismiss</button>
+        ${!a.test && !(a.verdict || fb.alerts[a.id]) ? `<button class="ghost" data-alv="false" data-aid="${a.id}" title="Not a Harvard call: remove it and teach the system">False alarm</button>` : ""}
+      </div>
+      ${(a.transmissions || []).length > 1 ? `<div class="tx"><b>All transmissions</b>${tx}</div>` : ""}
+    </div>`;
+    $("#active").classList.add("show");
+    const ab = $("#ackBtn");
+    if (ab) ab.onclick = () => ack(a);
+    const rb = $("#respondBtn");
+    if (rb) rb.onclick = async () => {
+      rb.disabled = true;
+      if (!a.acked_by) ack(a);
+      const c = await ocPost("add", {alert_id: a.id, by: await askName(), mark: "enroute"});
+      if (c) { putCall(c); renderCalls(); toast("You're on the call · en route " + hms(Date.now()) + " · next: tap “We're on scene” when you arrive"); }
+    };
+    $("#dismissBtn").onclick = () => { $("#active").classList.remove("show"); activeId = null; stopAlarmLoop(); ackedLocal.add(a.id); };
+    if (fresh){
+      window.scrollTo({top: 0, behavior: "smooth"});
+      if (a.level === "high") startAlarmLoop(); else chime();
+      notify(a);
+      document.title = (a.level === "high" ? "🚨 " : "⚠️ ") + a.hits[0].term + " · Crimson Dispatch";
+    }
+  }
+  async function ack(a){
+    stopAlarmLoop(); ackedLocal.add(a.id); document.title = "Crimson Dispatch Watch";   // silence first, then ask
+    const name = await askName();
+    try { await fetch("/api/ack", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({id: a.id, by: name || "someone"})}); } catch {}
+  }
+
+  // audio playback (event delegation)
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-audio]"); if (!b) return;
+    e.stopPropagation();
+    const p = $("#player");
+    if (p.dataset.src === b.dataset.audio && !p.paused) { p.pause(); return; }
+    p.src = b.dataset.audio; p.dataset.src = b.dataset.audio; p.play().catch(() => toast("Couldn't play audio clip"));
+  });
+
+  function toast(msg){ const t = $("#toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = "none", 3000); }
+
+
+  // ------------------------------------------------------------------ call board
+  const ST_LABEL = {dispatched: "Dispatched", responding: "Responding", "on scene": "On scene",
+    transporting: "Transporting", "at hospital": "At hospital", clear: "Available"};
+  const stCls = s => "st-" + String(s || "").replace(/ /g, "-");
+  const mins = ms => { const m = Math.max(0, Math.round((Date.now() - ms) / 60000)); return m < 60 ? m + "m" : Math.floor(m/60) + "h" + String(m%60).padStart(2,"0"); };
+  function unitChip(u, withStatus){
+    const lbl = ST_LABEL[u.status] || u.status || "";
+    return `<span class="uchip ${stCls(u.status)} ${u.inferred ? "inferred" : ""}" title="${esc(u.unit)}: ${esc(lbl)}${u.inferred ? " (inferred)" : ""} since ${fmtTime(u.since || u.last)}"><b>${esc(u.unit)}</b>${withStatus ? " · " + esc(lbl) + (u.inferred ? "?" : "") : ""}</span>`;
+  }
+  function incCard(i, closed){
+    const what = i.complaint || (i.harvard ? "Harvard call" : "Call");
+    const where = [i.address, i.place && i.place !== i.address ? i.place : null, i.town].filter(Boolean).join(" · ") || "Location unclear";
+    const hv = i.harvard ? `<span class="badge hv ${i.harvard}">${i.harvard === "high" ? "HARVARD" : "Harvard?"}</span>` : "";
+    const lvl = i.level ? `<span class="badge ${i.level.toLowerCase()}">${esc(i.level)}</span>` : "";
+    const units = i.units.length ? i.units.map(u => unitChip(u, true)).join("") : `<span class="meta">No unit identified</span>`;
+    const tl = i.timeline.slice().reverse().map(e => e.note
+      ? `<div><span class="tt">${fmtTime(e.time).slice(0,5)}</span><span class="note">${esc(e.text)}</span><span></span></div>`
+      : `<div><span class="tt">${fmtTime(e.time).slice(0,5)}</span><span class="${e.dispatch ? "d" : ""}">${esc(e.text)}${e.inferred ? " <span class='meta'>(inferred)</span>" : ""}</span>${e.audio_url ? `<button class="play" data-audio="${esc(e.audio_url)}">▶</button>` : "<span></span>"}</div>`).join("");
+    const status = closed ? `Closed${i.close_reason ? " · " + esc(i.close_reason) : ""}` : esc(ST_LABEL[i.status] || i.status);
+    return `<div class="inc ${i.harvard ? "harvard-" + i.harvard : ""} ${closed ? "done" : ""}">
+      <div class="top"><div class="what">${esc(what)}</div>${acuBadge(i.acuity, i.acuity_why)}${hv}${lvl}${closed ? "" : `<button class="x" data-dismissinc="${i.id}" title="Not a real call? Remove it from the board">✕</button>`}</div>
+      <div class="where">${esc(where)}</div>
+      ${(i.address || i.place) ? `<div class="geo" data-geoinc="${i.id}">${geoLine(i)}</div>` : ""}
+      ${i.ai_summary ? `<div class="aisum"><b>Summary:</b> ${esc(i.ai_summary)}</div>` : ""}
+      ${i.ai_not_call && !closed ? `<div class="ainot">AI: probably not a real call <button class="x" data-dismissinc="${i.id}">remove</button></div>` : ""}
+      ${(i.merged_from || []).length ? `<div class="mergenote" title="${esc(i.merged_from.map(m => m.label + " (" + m.why + ")").join("; "))}">⇄ merged ${i.merged_from.length} duplicate card${i.merged_from.length > 1 ? "s" : ""} · ${esc(i.merged_from[i.merged_from.length - 1].why)}</div>` : ""}
+      <div class="meta">${(i.acuity_why || []).length ? esc(i.acuity_why[0]) + " · " : ""}${i.age ? esc(i.age) + " · " : ""}${status} · opened ${fmtTime(i.opened).slice(0,5)} (${mins(i.opened)} ago)${i.hospital ? " · → " + esc(i.hospital) : ""}</div>
+      <div class="ulist">${units}</div>
+      ${(() => { const lc = typeof linkedCall === "function" ? linkedCall(i.id) : null;
+         return lc ? `<button class="respond linked" data-opencall="${lc.id}">✓ In our calls</button>`
+                   : `<button class="respond" data-respondinc="${i.id}">＋ We responded</button>`; })()}
+      ${!closed && (state.board.incidents || []).length > 1 ? `<select class="mergesel" data-mergeinc="${i.id}" title="Two cards for the same call? Merge them">
+        <option value="">⇄ Same call as…</option>${state.board.incidents.filter(o => o.id !== i.id).map(o =>
+          `<option value="${o.id}">${esc((o.complaint || "Call") + " · " + (o.address || o.place || "location unclear") + " · " + fmtTime(o.opened).slice(0, 5))}</option>`).join("")}</select>` : ""}
+      <details data-inctl="${i.id}" ${incOpen.has(i.id) ? "open" : ""}><summary>▸ ${i.timeline.length} transmission${i.timeline.length === 1 ? "" : "s"}</summary><div class="tl">${tl}</div></details>
+    </div>`;
+  }
+  const incOpen = new Set();                 // cards whose transmission list is expanded (kept across refreshes)
+  let boardPending = false;
+  document.addEventListener("toggle", e => { const d = e.target.dataset && e.target.dataset.inctl; if (d) { e.target.open ? incOpen.add(d) : incOpen.delete(d); } }, true);
+  // ---- map & travel time (geocoded on the server, cached; estimates, not routing)
+  const geoCache = {}, geoQueue = [];
+  let geoBusy = false;
+  const geoKey = i => i.id + "|" + (i.address || "") + "|" + (i.place || "");
+  function geoLine(i){
+    const g = geoCache[geoKey(i)];
+    if (g === undefined) { if (!geoQueue.includes(i.id)) { geoQueue.push(i.id); geoNext(); } return `<span>Locating on the map…</span>`; }
+    if (!g || !g.dest) return `<span>Not found on the map</span>`;
+    if (!g.base) return `<button class="lnk" data-mapinc="${i.id}">Map</button>`;
+    const dir = `https://www.google.com/maps/dir/?api=1&origin=${g.base.lat},${g.base.lon}&destination=${g.dest.lat},${g.dest.lon}&travelmode=walking`;
+    return `<span><b>${g.dist_mi < 0.1 ? Math.round(g.dist_m) + " m" : g.dist_mi + " mi"}</b>${g.dest.approx ? " (approx.)" : ""}</span>
+      <span>~${g.walk_min} min walk</span><span>~${g.drive_min} min drive</span>
+      <button class="lnk" data-mapinc="${i.id}">Map</button><a href="${dir}" target="_blank" rel="noopener">Directions</a>`;
+  }
+  async function geoNext(){
+    if (geoBusy || !geoQueue.length) return;
+    geoBusy = true;
+    const id = geoQueue.shift();
+    const inc = (state.board.incidents || []).concat(state.board.closed || []).find(x => x.id === id);
+    if (inc) {
+      let g = null;
+      try { const r = await fetch("/api/geo?inc=" + encodeURIComponent(id)); g = await r.json(); if (!r.ok && !g.dest) g = {dest: null, base: g.base}; } catch { g = undefined; }
+      if (g !== undefined) geoCache[geoKey(inc)] = g;
+      document.querySelectorAll(`[data-geoinc="${CSS.escape(id)}"]`).forEach(el => el.innerHTML = g === undefined ? "<span>Map unavailable</span>" : geoLine(inc));
+    }
+    geoBusy = false; geoNext();
+  }
+  let leafletP = null;
+  function loadLeaflet(){
+    if (window.L) return Promise.resolve();
+    return leafletP = leafletP || new Promise((res, rej) => {
+      const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(css);
+      const js = document.createElement("script"); js.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; js.onload = res; js.onerror = rej; document.head.appendChild(js);
+    });
+  }
+  let mapObj = null;
+  async function openMap(id){
+    const inc = (state.board.incidents || []).concat(state.board.closed || []).find(x => x.id === id);
+    const g = inc && geoCache[geoKey(inc)];
+    if (!g || !g.dest) return toast("This call isn't on the map yet");
+    const where = [inc.address, inc.place].filter(Boolean).join(" · ");
+    $("#mapInfo").innerHTML = `<span class="big">${esc(inc.complaint || "Call")}</span><span>${esc(where)}</span>` +
+      (g.base ? `<span><b>${g.dist_mi} mi</b> from ${esc(g.base.label)}${g.base.is_default ? " (set your base in Settings → Map &amp; base)" : ""}</span><span>~${g.walk_min} min walk · ~${g.drive_min} min drive</span>
+        <a href="https://www.google.com/maps/dir/?api=1&origin=${g.base.lat},${g.base.lon}&destination=${g.dest.lat},${g.dest.lon}&travelmode=walking" target="_blank" rel="noopener">Directions</a>` : "") +
+      (g.dest.approx ? `<span class="hint" style="margin:0">Pin is approximate (${esc(g.dest.query)})</span>` : "");
+    $("#mapDlg").showModal();
+    try { await loadLeaflet(); } catch { $("#mapBox").innerHTML = `<p class="hint" style="padding:12px">Couldn't load the map (no internet?).</p>`; return; }
+    if (mapObj) { mapObj.remove(); mapObj = null; }
+    mapObj = L.map("mapBox");
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19, attribution: "© OpenStreetMap contributors"}).addTo(mapObj);
+    const d = [g.dest.lat, g.dest.lon];
+    L.circleMarker(d, {radius: 10, color: "#e0364f", fillColor: "#e0364f", fillOpacity: .9}).addTo(mapObj).bindTooltip(esc(inc.complaint || "Call"), {permanent: true, direction: "top", offset: [0, -8]});
+    if (g.base) {
+      const b = [g.base.lat, g.base.lon];
+      L.circleMarker(b, {radius: 8, color: "#2b6cb0", fillColor: "#4c8bf5", fillOpacity: .9}).addTo(mapObj).bindTooltip("Base", {permanent: true, direction: "top", offset: [0, -6]});
+      L.polyline([b, d], {color: "#e0364f", weight: 3, dashArray: "6 6"}).addTo(mapObj);
+      mapObj.fitBounds([b, d], {padding: [50, 50], maxZoom: 17});
+    } else mapObj.setView(d, 17);
+    setTimeout(() => mapObj && mapObj.invalidateSize(), 50);
+  }
+  document.addEventListener("click", e => { const b = e.target.closest("[data-mapinc]"); if (b) { e.preventDefault(); openMap(b.dataset.mapinc); } });
+  function renderBoard(){
+    const ae = document.activeElement;            // don't rebuild the board under an open "Same call as…" menu
+    if (ae && ae.matches && ae.matches("select.mergesel") && $("#incGrid").contains(ae)) { boardPending = true; return; }
+    boardPending = false;
+    const b = state.board || {incidents: [], closed: [], units: []};
+    const busy = b.units.filter(u => u.status !== "clear");
+    const avail = b.units.filter(u => u.status === "clear");
+    const keep = i => showAll() || i.harvard;
+    const open = b.incidents.filter(keep).sort((a, c) => (c.harvard === "high") - (a.harvard === "high") || c.last - a.last);
+    const showClosed = $("#showClosed").checked;
+    let html = open.map(i => incCard(i, false)).join("");
+    if (showClosed) html += b.closed.filter(keep).map(i => incCard(i, true)).join("");
+    $("#incGrid").className = html ? "inc-grid" : "";
+    $("#incGrid").innerHTML = html || (showAll()
+      ? `<div class="board-empty">No active calls. ${b.closed.length ? `${b.closed.length} closed recently.` : "Dispatches show up here as they're heard."}</div>`
+      : `<div class="board-empty">No Harvard calls right now.</div>`);
+    $("#boardCount").textContent = open.length ? `· ${open.length} active` : "";
+  }
+  applyMode();
+  $("#showClosed").checked = store.get("showClosed", false);
+  $("#showClosed").onchange = e => { store.set("showClosed", e.target.checked); renderBoard(); };
+  setInterval(renderBoard, 30000);
+  $("#incGrid").addEventListener("focusout", () => setTimeout(() => { if (boardPending) renderBoard(); }, 50));
+
+  // ------------------------------------------------------------------ live connection
+  let live = false, es = null;
+  async function loadState(){
+    const r = await fetch("/api/state"); state = await r.json();
+    await loadFeedback();
+    renderFilters(); renderBoard(); renderFeed(); renderAlerts(); renderPills();
+    const open = [...state.alerts].reverse().find(a => !a.acked_by && !a.dismissed && !ackedLocal.has(a.id) && a.level === "high" && Date.now() - a.time < 15*60e3);
+    if (open && activeId !== open.id) showActive(open, false);
+  }
+  function connect(){
+    if (es) es.close();
+    es = new EventSource("/events");
+    if (typeof attachReplay === "function") attachReplay(es);
+    if (window.__demoAttach) window.__demoAttach(es);
+    es.onopen = () => { live = true; loadState().catch(() => {}); };
+    es.onerror = () => { live = false; renderPills(); };
+    es.addEventListener("call", e => { const c = JSON.parse(e.data); state.calls.push(c); if (state.calls.length > 300) state.calls.shift(); renderFeed(); });
+    es.addEventListener("status", e => { state.status = JSON.parse(e.data); renderPills(); });
+    es.addEventListener("board", e => { state.board = JSON.parse(e.data); renderBoard(); });
+    es.addEventListener("ourcalls", e => { oc = JSON.parse(e.data); renderCalls(); });
+    es.addEventListener("alert", e => {
+      const a = JSON.parse(e.data);
+      const i = state.alerts.findIndex(x => x.id === a.id); if (i >= 0) state.alerts[i] = a; else state.alerts.push(a);
+      renderAlerts(); showActive(a, true);
+    });
+    es.addEventListener("alert_update", e => {
+      const a = JSON.parse(e.data);
+      const i = state.alerts.findIndex(x => x.id === a.id); if (i >= 0) state.alerts[i] = a; else state.alerts.push(a);
+      renderAlerts();
+      if (activeId === a.id) {
+        if (a.dismissed) { stopAlarmLoop(); $("#active").classList.remove("show"); activeId = null; document.title = "Crimson Dispatch Watch"; return; }
+        if (a.acked_by) { stopAlarmLoop(); document.title = "Crimson Dispatch Watch"; } showActive(a, false); }
+    });
+  }
+  connect();
+  setInterval(renderPills, 15000);
+
+  $("#btnTest").onclick = async () => { if (!ctx) { audioCtx(); $("#btnSound").textContent = "Sound on ✓"; $("#btnSound").classList.remove("primary"); } // local-only test: doesn't alarm anyone else's dashboard
+    showActive({id: "local-test-" + Date.now(), test: true, level: "high", time: Date.now(), talkgroup_name: "TEST (this device only)",
+      hits: [{term: "TEST", level: "high", heard: ""}], text: "Pro 2 respond to Weld Hall, Harvard Yard, 19 year old intox, HUPD private response.",
+      acked_by: null, transmissions: []}, true); };
+
+  // ------------------------------------------------------------------ settings
+  const dlg = $("#dlg");
+  $("#btnSettings").onclick = async () => { await loadConfig(); dlg.showModal(); };
+  $("#dlgClose").onclick = () => dlg.close();
+  $("#tabs").onclick = e => { const b = e.target.closest("button[data-tab]"); if (!b) return;
+    document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
+    document.querySelectorAll("[data-pane]").forEach(p => p.hidden = p.dataset.pane !== b.dataset.tab);
+    $("#saveCfg").parentElement.style.display = ["tryit","device"].includes(b.dataset.tab) ? "none" : "flex"; };
+
+  async function loadConfig(){
+    config = await (await fetch("/api/config")).json();
+    renderRules(); renderRanges(); renderTgs(); $("#prompt").value = config.whisper_prompt || "";
+    $("#myName").value = store.get("name", ""); $("#vol").value = store.get("vol", 0.8);
+    $("#baseAddr").value = (config.base || {}).address || ""; $("#baseLabel").value = (config.base || {}).label || "";
+    $("#mediumSound").checked = store.get("mediumSound", true); $("#repeatAlarm").checked = store.get("repeatAlarm", true);
+  }
+  const lvlSel = v => `<select data-f="level"><option value="high" ${v==="high"?"selected":""}>High</option><option value="medium" ${v==="medium"?"selected":""}>Medium</option></select>`;
+  function renderRules(){
+    const q = ($("#ruleSearch").value || "").toLowerCase();
+    $("#rulesBody").innerHTML = config.rules.map((r, i) => (!q || JSON.stringify(r).toLowerCase().includes(q)) ? `<tr data-i="${i}">
+      <td><input data-f="term" value="${esc(r.term)}"></td><td><input data-f="aliases" value="${esc((r.aliases||[]).join(", "))}"></td>
+      <td>${lvlSel(r.level)}</td><td><input data-f="category" value="${esc(r.category||"")}"></td><td><button class="play" data-del>✕</button></td></tr>` : "").join("");
+    $("#rulesBody").querySelectorAll("tr").forEach(tr => { const r = config.rules[+tr.dataset.i];
+      tr.querySelectorAll("[data-f]").forEach(inp => inp.oninput = () => { const f = inp.dataset.f; r[f] = f === "aliases" ? inp.value.split(",").map(s => s.trim()).filter(Boolean) : inp.value; });
+      tr.querySelector("[data-del]").onclick = () => { config.rules.splice(+tr.dataset.i, 1); renderRules(); }; });
+  }
+  $("#ruleSearch").oninput = renderRules;
+  $("#addRule").onclick = () => { config.rules.unshift({term: "", aliases: [], level: "high", category: "Custom"}); $("#ruleSearch").value = ""; renderRules(); $("#rulesBody input").focus(); };
+  function renderRanges(){
+    $("#rangesBody").innerHTML = config.address_ranges.map((r, i) => `<tr data-i="${i}">
+      <td><input data-f="label" value="${esc(r.label)}"></td><td><input data-f="street" value="${esc(r.street)}"></td>
+      <td><input data-f="aliases" value="${esc((r.aliases||[]).join(", "))}"></td><td><input data-f="from" type="number" value="${r.from}"></td>
+      <td><input data-f="to" type="number" value="${r.to}"></td><td>${lvlSel(r.level)}</td><td><button class="play" data-del>✕</button></td></tr>`).join("");
+    $("#rangesBody").querySelectorAll("tr").forEach(tr => { const r = config.address_ranges[+tr.dataset.i];
+      tr.querySelectorAll("[data-f]").forEach(inp => inp.oninput = () => { const f = inp.dataset.f; r[f] = f === "aliases" ? inp.value.split(",").map(s => s.trim()).filter(Boolean) : (f === "from" || f === "to") ? +inp.value : inp.value; });
+      tr.querySelector("[data-del]").onclick = () => { config.address_ranges.splice(+tr.dataset.i, 1); renderRanges(); }; });
+  }
+  $("#addRange").onclick = () => { config.address_ranges.push({label: "New range", street: "", aliases: [], from: 1, to: 100, level: "high"}); renderRanges(); };
+  function renderTgs(){
+    const entries = Object.entries(config.talkgroups);
+    $("#tgBody").innerHTML = entries.map(([k, v], i) => `<tr data-i="${i}"><td><input data-f="k" value="${esc(k)}"></td><td><input data-f="v" value="${esc(v)}"></td><td><button class="play" data-del>✕</button></td></tr>`).join("");
+    config._tgList = entries;
+    $("#tgBody").querySelectorAll("tr").forEach(tr => { const row = config._tgList[+tr.dataset.i];
+      tr.querySelector('[data-f="k"]').oninput = e => row[0] = e.target.value.trim();
+      tr.querySelector('[data-f="v"]').oninput = e => row[1] = e.target.value;
+      tr.querySelector("[data-del]").onclick = () => { config._tgList.splice(+tr.dataset.i, 1); config.talkgroups = Object.fromEntries(config._tgList); renderTgs(); }; });
+  }
+  $("#addTg").onclick = () => { config.talkgroups = Object.fromEntries(config._tgList); config.talkgroups[""] = ""; renderTgs(); };
+
+  function adminHeaders(){ const h = {"Content-Type": "application/json"}; const k = store.get("adminKey", ""); if (k) h["X-Admin-Key"] = k; return h; }
+  async function withAdmin(fn){
+    let r = await fn();
+    if (r.status === 403) { const k = prompt("Admin key (set with --admin-key on the server):"); if (!k) return r; store.set("adminKey", k); r = await fn(); }
+    return r;
+  }
+  $("#saveCfg").onclick = async () => {
+    const body = {rules: config.rules.filter(r => r.term && r.term.trim()), address_ranges: config.address_ranges,
+      talkgroups: Object.fromEntries((config._tgList || Object.entries(config.talkgroups)).filter(([k]) => /^\d+$/.test(k))), whisper_prompt: $("#prompt").value};
+    const r = await withAdmin(() => fetch("/api/config", {method: "POST", headers: adminHeaders(), body: JSON.stringify(body)}));
+    const j = await r.json().catch(() => ({}));
+    $("#saveOut").textContent = r.ok ? "Saved. New rules apply to the next transmission." : ("Not saved: " + (j.error || r.status));
+    if (r.ok) { config = {...config, ...j}; loadState(); }
+  };
+  $("#tryBtn").onclick = async () => {
+    const r = await fetch("/api/match", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text: $("#tryText").value})});
+    const j = await r.json();
+    $("#tryOut").innerHTML = j.hits.length ? j.hits.map(h => `<span class="tag ${h.level}">${esc(h.term)}</span> heard as “${esc(h.heard)}” (${Math.round(h.score*100)}%)`).join("<br>") : "No match.";
+  };
+  $("#saveBase").onclick = async () => {
+    const r = await withAdmin(() => fetch("/api/config", {method: "POST", headers: adminHeaders(),
+      body: JSON.stringify({base: {address: $("#baseAddr").value.trim(), label: $("#baseLabel").value.trim()}})}));
+    $("#baseOut").textContent = r.ok ? "Saved. Distances update as calls come in." : "Not saved";
+    if (r.ok) { Object.keys(geoCache).forEach(k => delete geoCache[k]); renderBoard(); }
+  };
+  $("#myName").oninput = e => store.set("name", e.target.value.trim());
+  $("#vol").oninput = e => store.set("vol", +e.target.value);
+  $("#mediumSound").onchange = e => store.set("mediumSound", e.target.checked);
+  $("#repeatAlarm").onchange = e => store.set("repeatAlarm", e.target.checked);
+  $("#testPush").onclick = async () => {
+    const r = await withAdmin(() => fetch("/api/test", {method: "POST", headers: adminHeaders(), body: JSON.stringify({push: true})}));
+    $("#testPushOut").textContent = r.ok ? (state.status.push ? "Sent. Check your phones." : "No push channel configured on the server.") : "Failed.";
+  };
+
+  // ------------------------------------------------------------------ accuracy & training
+  const accDlg = $("#accDlg");
+  $("#accClose").onclick = () => accDlg.close();
+  $("#mapClose").onclick = () => $("#mapDlg").close();
+  async function renderAccuracy(){
+    await loadFeedback();
+    const s = fb.stats || {}, need = 200;
+    const tile = (big, small) => `<div class="acc-tile"><b>${big}</b><span>${small}</span></div>`;
+    $("#accBody").innerHTML = `
+      <p class="hint">Every <b>✓</b> or <b>Fix</b> on a radio line, and every <b>Real call / False alarm</b> on an alert, teaches the system.
+        Corrections are saved with the clip's audio (public radio only) to train Whisper on Cambridge radio.</p>
+      <div class="acc-grid">
+        ${tile(s.word_accuracy == null ? "—" : s.word_accuracy + "%", "word accuracy on reviewed clips")}
+        ${tile(s.clips_reviewed || 0, `clips reviewed (${s.clips_right || 0} right, ${s.clips_wrong || 0} fixed)`)}
+        ${tile(`${s.training_ready || 0}/${need}`, "training clips with audio (aim for 200+ before fine-tuning)")}
+        ${tile(s.alerts_reviewed ? Math.round(100 * s.alerts_false / s.alerts_reviewed) + "%" : "—", `false alarms (${s.alerts_false || 0} of ${s.alerts_reviewed || 0} alerts reviewed)`)}
+      </div>
+      <progress max="${need}" value="${Math.min(need, s.training_ready || 0)}" style="width:100%;accent-color:var(--crimson)"></progress>
+      <h4>Learned fixes <span class="hint">(applied automatically once the same mishearing is corrected twice)</span></h4>
+      ${(s.learned_fixes || []).length ? `<ul class="acc-list">${s.learned_fixes.map(([w, r]) => `<li>“${esc(w)}” → “${esc(r)}”</li>`).join("")}</ul>` : `<p class="hint">None yet.</p>`}
+      <h4>Words to add to the vocabulary hint</h4>
+      ${(s.suggested_words || []).length ? `<p>${s.suggested_words.map(w => `<span class="tag">${esc(w)}</span>`).join(" ")}</p>
+        <div class="row-gap"><button id="accAddWords">Add these to the vocabulary hint</button><span class="hint" id="accAddOut"></span></div>` : `<p class="hint">None yet.</p>`}
+      <h4>Locations behind false alarms</h4>
+      ${(s.false_alarm_terms || []).length ? `<ul class="acc-list">${s.false_alarm_terms.map(([t, n]) => `<li>${esc(t)}: ${n}</li>`).join("")}</ul>` : `<p class="hint">None yet.</p>`}
+      <h4>Training Whisper</h4>
+      <p class="hint">When you have 200+ training clips, quit the server and run <code>./train.command</code> in the crimson-dispatch folder.
+        It trains a copy of the model on your clips, tests it against clips it didn't train on, and only switches to it if it's more accurate.</p>`;
+    const add = $("#accAddWords");
+    if (add) add.onclick = async () => {
+      await loadConfig();
+      const cur = config.whisper_prompt || "", have = new Set(cur.toLowerCase().split(/[^a-z0-9']+/));
+      const extra = s.suggested_words.filter(w => !have.has(w)).map(w => w[0].toUpperCase() + w.slice(1));
+      if (!extra.length) return $("#accAddOut").textContent = "Already there.";
+      const r = await withAdmin(() => fetch("/api/config", {method: "POST", headers: adminHeaders(), body: JSON.stringify({whisper_prompt: cur.replace(/[.\s]*$/, "") + ", " + extra.join(", ") + "."})}));
+      $("#accAddOut").textContent = r.ok ? "Added: " + extra.join(", ") : "Not saved";
+    };
+  }
+  $("#btnAccuracy").onclick = async () => { await renderAccuracy(); accDlg.showModal(); };
+
+  // ------------------------------------------------------------------ replay
+  let rp = {state: "none", calls: [], alerts: []};
+  const rdlg = $("#rdlg");
+  const fmtDT = ms => new Date(ms).toLocaleString([], {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"});
+  const toLocalInput = d => { const z = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
+  function rpRunning(){ return rp && rp.state && !["none","done","cancelled","error"].includes(rp.state); }
+  function renderReplay(){
+    const st = $("#rpStatus");
+    if (!rp || rp.state === "none") { st.innerHTML = ""; }
+    else {
+      const pct = rp.total ? Math.round(100 * rp.done / rp.total) : 0;
+      const label = {fetching: `Fetching calls from OpenMHz… ${rp.total || 0} found so far`,
+        "waiting for Whisper": "Waiting for Whisper to finish loading…",
+        transcribing: `Re-transcribing <b>past</b> audio: ${rp.done} of ${rp.total} clips${(state.status && state.status.asr_sec) ? ` · about ${Math.max(1, Math.round((rp.total - rp.done) * state.status.asr_sec * 1.3 / 60))} min left` : ""}. Live calls still go first.`,
+        done: `Done: ${rp.total} calls (${rp.transcribed} with speech, ${rp.failed} failed), ${rp.alerts.length} alert(s)`,
+        cancelled: `Cancelled after ${rp.done} / ${rp.total} calls`,
+        error: "Replay failed: " + esc(rp.error || "")}[rp.state] || esc(rp.state);
+      st.innerHTML = `<b>${fmtDT(rp.start)} → ${fmtDT(rp.end)}</b> · ${label}` +
+        (rpRunning() ? `<br><progress max="100" value="${rp.state === "transcribing" ? pct : 0}"></progress>` : "") +
+        (rp.state === "done" ? `<div class="hint" style="margin:4px 0 0">Saved to logs/replay-${esc(rp.tag)}-calls.jsonl</div>` : "");
+    }
+    $("#rpRun").disabled = rpRunning(); $("#rpCancel").hidden = !rpRunning();
+    const showEmpty = $("#rpEmpty").checked;
+    const newest = store.get("rpNewestFirst", true);
+    $("#rpOrder").textContent = newest ? "Newest first ▾" : "Oldest first ▴";
+    const rows = (rp.calls || []).filter(c => showEmpty || c.text || (c.hits && c.hits.length)).slice()
+      .sort((a, b) => newest ? b.time - a.time : a.time - b.time);
+    $("#rpCalls").innerHTML = rows.length ? rows.map(callRow).join("") :
+      `<div class="empty-state">${rpRunning() ? "Transcripts appear here as they're processed…" : "No transcripts yet."}</div>`;
+    const al = (rp.alerts || []).slice().sort((a, b) => newest ? b.time - a.time : a.time - b.time);
+    $("#rpAlerts").innerHTML = al.length ? al.map(a => `<div class="rp-alert ${a.level}">
+        <div class="h">${esc(a.hits.map(h => h.term).join(", "))}</div>
+        <div class="s">${fmtDT(a.time)} · ${esc(a.talkgroup_name)}${a.transmissions.length > 1 ? ` · ${a.transmissions.length} transmissions` : ""}</div>
+        <div class="q">${esc(a.text)}</div>
+        ${a.audio_url ? `<button class="play" data-audio="${esc(a.audio_url)}" style="margin-top:4px">▶ Play</button>` : ""}</div>`).join("") :
+      `<div class="empty-state">${rp.state === "done" ? "Nothing in this window would have alerted." : "None yet."}</div>`;
+  }
+  async function loadReplay(){ try { rp = await (await fetch("/api/replay")).json(); rp.calls = rp.calls || []; rp.alerts = rp.alerts || []; } catch {} renderReplay(); }
+  $("#btnReplay").onclick = async () => {
+    if (!$("#rpFrom").value) {
+      const end = new Date(); end.setMinutes(0, 0, 0); const start = new Date(end - 3600e3);
+      $("#rpFrom").value = toLocalInput(start); $("#rpTo").value = toLocalInput(end);
+    }
+    await loadReplay(); rdlg.showModal();
+  };
+  $("#rdlgClose").onclick = () => rdlg.close();
+  $("#rpEmpty").onchange = renderReplay;
+  $("#rpOrder").onclick = () => { store.set("rpNewestFirst", !store.get("rpNewestFirst", true)); renderReplay();
+    $("#rpCalls").scrollTop = 0; $("#rpAlerts").scrollTop = 0; };
+  $("#rpRun").onclick = async () => {
+    const body = {from: $("#rpFrom").value, to: $("#rpTo").value};
+    if (!body.from || !body.to) return toast("Pick a start and end time");
+    const r = await withAdmin(() => fetch("/api/replay", {method: "POST", headers: adminHeaders(), body: JSON.stringify(body)}));
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return toast("Replay not started: " + (j.error || r.status));
+    rp = {...j, calls: [], alerts: j.alerts || []}; renderReplay();
+  };
+  $("#rpCancel").onclick = async () => {
+    await withAdmin(() => fetch("/api/replay/cancel", {method: "POST", headers: adminHeaders(), body: "{}"}));
+  };
+  function setReplayPill(r){
+    const running = r && r.state && !["none", "done", "cancelled", "error"].includes(r.state);
+    window.__rpRun = running ? {done: r.done || 0, total: r.total || 0, start: r.start, end: r.end, state: r.state} : null;
+    renderPills();
+  }
+  fetch("/api/replay").then(r => r.json()).then(j => { if (j && j.state && j.state !== "none") { rp = {...j, calls: j.calls || [], alerts: j.alerts || []}; setReplayPill(rp); } }).catch(() => {});
+  document.addEventListener("click", async e => {
+    if (e.target.closest("#rpPillOpen")) { $("#btnReplay").click(); }
+    if (e.target.closest("#rpPillStop")) { await withAdmin(() => fetch("/api/replay/cancel", {method: "POST", headers: adminHeaders(), body: "{}"})); toast("Replay stopped"); }
+  });
+  function attachReplay(src){
+    src.addEventListener("replay_status", e => { const j = JSON.parse(e.data);
+      if (!rp || rp.id !== j.id) rp = {...j, calls: []}; else Object.assign(rp, j); if (rdlg.open) renderReplay(); setReplayPill(rp); });
+    src.addEventListener("replay_call", e => { const c = JSON.parse(e.data);
+      if (rp) { rp.calls.push(c); if (rp.calls.length > 1500) rp.calls.shift(); if (rdlg.open) renderReplay(); } });
+  }  // attachReplay is hoisted, so connect() wires it up on every (re)connect
+
+  // ------------------------------------------------------------------ our calls
+  let oc = {calls: [], suggestions: [], milestones: [], outcomes: []};
+  let ocPop = null;            // {id, key}: the step whose edit panel is open
+  let ocOpen = new Set(store.get("openCalls", []));   // finished calls the user expanded
+  let ocPending = false;
+  const STEP_HINT = {alerted: "When the alarm went off", dispatched: "Pro / Fire dispatch on the radio",
+    enroute: "Crew left for the call", onscene: "Crew arrived", contact: "First contact with the patient", vitals: "First set of vitals taken",
+    pro_onscene: "Pro EMS arrived", transport: "Patient handed off / transported", clear: "Crew back in service"};
+  const NEXT_LABEL = {alerted: "Alarm received", dispatched: "Dispatched", enroute: "We're en route", onscene: "We're on scene",
+    contact: "Patient contact", vitals: "Vitals taken", pro_onscene: "Pro is on scene", transport: "Handed off to Pro", clear: "We're clear"};
+  // steps the crew taps in order (alerted / dispatched come from the radio, but can still be set by tapping the step)
+  const FLOW = ["enroute", "onscene", "contact", "vitals", "transport", "clear"];
+  const CORE = ["alerted", "enroute", "onscene", "contact", "vitals", "transport", "clear"];   // shown by default
+  const EXTRA = ["dispatched", "pro_onscene"];                                              // under "more times"
+  const SHORT = {transport: "Handoff", pro_onscene: "Pro on scene", contact: "Pt contact"};
+  let ocMore = new Set();
+  let ocDetails = new Set();
+  const pad2 = n => String(n).padStart(2, "0");
+  const hms = ms => { const d = new Date(ms); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
+  const hm = ms => { const d = new Date(ms); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+  const dur = ms => { if (ms == null || ms < 0) return "—"; const s = Math.round(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+    return h ? `${h}:${pad2(m)}:${pad2(s % 60)}` : `${m}:${pad2(s % 60)}`; };
+  const T = (c, k) => c.times[k] && c.times[k].t;
+  const label = k => SHORT[k] || (oc.milestones.find(m => m[0] === k) || [k, k])[1];
+  // a call is "on" until the crew marks Clear (or cancels); entries logged after the fact drop to Past after 3 h
+  const lastTouch = c => Math.max(c.created, ...Object.values(c.times).filter(v => v.src === "marked").map(v => v.at || v.t));
+  const isOpen = c => !c.after_the_fact && !T(c, "clear") && !["Cancelled en route", "Unfounded / no patient"].includes(c.outcome) && Date.now() - lastTouch(c) < 3 * 3600e3;
+  const nextStep = c => FLOW.find(k => !c.times[k]);
+  const startOf = c => T(c, "alerted") || T(c, "dispatched") || T(c, "enroute") || c.created;
+  const callName = c => [c.title || "Untitled call", c.location].filter(Boolean).join(" · ");
+
+  // -- name: asked once, the first time you mark something
+  const nameDlg = document.createElement("dialog");
+  nameDlg.innerHTML = `<form method="dialog" style="padding:18px;display:flex;flex-direction:column;gap:10px;min-width:280px">
+    <b style="font-size:16px">Who's marking?</b><span class="hint" style="margin:0">Your name shows next to the times you mark, so the crew knows who logged what.</span>
+    <input id="nameAsk" placeholder="Your name" autocomplete="name" required>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button value="skip" class="ghost" formnovalidate>Skip</button><button value="ok" class="primary">Save</button></div></form>`;
+  document.body.appendChild(nameDlg);
+  let namePending = null;
+  function askName(){
+    if (namePending) return namePending;            // alarm "Acknowledge" + "We're responding" share one prompt
+    return namePending = new Promise(res => {
+      const n = store.get("name", ""); if (n) { namePending = null; return res(n); }
+      nameDlg.querySelector("#nameAsk").value = ""; nameDlg.showModal();
+      nameDlg.onclose = () => { const v = nameDlg.querySelector("#nameAsk").value.trim();
+        if (nameDlg.returnValue === "ok" && v) { store.set("name", v); const mi = $("#myName"); if (mi) mi.value = v; }
+        namePending = null; res(store.get("name", "") || "someone"); };
+    });
+  }
+
+  // -- toast with Undo
+  function toastUndo(msg, undo){
+    const t = $("#toast"); t.innerHTML = `${esc(msg)} <button class="ghost" style="margin-left:10px;padding:3px 10px">Undo</button>`;
+    t.style.display = "block"; t.querySelector("button").onclick = async () => { t.style.display = "none"; await undo(); };
+    clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = "none", 7000);
+  }
+
+  async function ocPost(action, body){
+    const r = await fetch("/api/ourcalls/" + action, {method: "POST", headers: adminHeaders(), body: JSON.stringify(body)});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(j.error || "Failed"); return null; }
+    return j;
+  }
+  function putCall(c){ const i = oc.calls.findIndex(x => x.id === c.id); if (i >= 0) oc.calls[i] = c; else oc.calls.unshift(c); }
+  async function loadCalls(){ try { const r = await fetch("/api/ourcalls"); if (r.ok) { oc = await r.json(); renderCalls(); renderBoard(); } } catch {} }
+  function linkedCall(incId){ return oc.calls.find(c => c.incident_id === incId); }
+
+  // set a step's time (t = "now", epoch ms, or null to remove), with Undo
+  async function setStep(id, key, t){
+    const c = oc.calls.find(x => x.id === id); if (!c) return;
+    const prev = c.times[key] ? {...c.times[key]} : null;
+    const by = await askName();
+    const r = await ocPost("mark", {id, key, t, by}); if (!r) return;
+    putCall(r); ocPop = null; ocPending = false;
+    if (key === "clear" && t !== null) { ocOpen.add(id); store.set("openCalls", [...ocOpen]); }   // keep it open to add the outcome
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    renderCalls();
+    const when = r.times[key] ? hms(r.times[key].t) : null;
+    toastUndo(when ? `${label(key)} · ${when}` : `${label(key)} removed`, async () => {
+      const back = !prev ? null : prev.src === "marked" ? prev.t : null;   // auto values come back by themselves
+      const r2 = await ocPost("mark", {id, key, t: back, by}); if (r2) { putCall(r2); renderCalls(); }
+    });
+  }
+
+  function setView(v){
+    document.body.classList.toggle("view-calls", v === "calls");
+    $("#tabLive").classList.toggle("on", v !== "calls"); $("#tabCalls").classList.toggle("on", v === "calls");
+    store.set("view", v);
+    if (v === "calls") { loadCalls(); window.scrollTo({top: 0}); }
+  }
+  $("#tabLive").onclick = () => setView("live");
+  $("#tabCalls").onclick = () => setView("calls");
+
+  function timeFromInput(c, key, val){
+    const [h, m, sec] = val.split(":").map(Number);
+    const ref = new Date(T(c, key) || startOf(c));
+    const d = new Date(ref); d.setHours(h, m, sec || 0, 0);
+    if (d - ref > 12 * 3600e3) d.setDate(d.getDate() - 1);
+    if (ref - d > 12 * 3600e3) d.setDate(d.getDate() + 1);
+    return d.getTime();
+  }
+
+  // -- the step timeline
+  function stepper(c){
+    const nx = nextStep(c);
+    const keys = ocMore.has(c.id) ? oc.milestones.map(m => m[0]) : CORE;
+    const extraSet = EXTRA.filter(k => c.times[k]).length;
+    return `<ol class="steps" style="--n:${keys.length}">${keys.map(k => {
+      const v = c.times[k], open = ocPop && ocPop.id === c.id && ocPop.key === k;
+      const sub = !v ? (k === nx && isOpen(c) ? "next" : "") : v.src === "marked" ? (v.by ? esc(v.by) : "marked") : "radio";
+      return `<li class="step ${v ? "done " + v.src : ""} ${k === nx && isOpen(c) ? "next" : ""} ${open ? "open" : ""}">
+        <button data-step="${c.id}:${k}" title="${esc(STEP_HINT[k] || "")} · tap to change"><span class="dot"></span>
+          <span class="sl">${esc(label(k))}</span><span class="st">${v ? hms(v.t) : "—"}</span><span class="ss">${sub}</span></button></li>`;
+    }).join("")}</ol>
+    <button class="linkbtn" data-moretimes="${c.id}">${ocMore.has(c.id) ? "− fewer times" : `+ more times (dispatch, Pro on scene${extraSet ? ` · ${extraSet} set` : ""})`}</button>`;
+  }
+  function stepPanel(c){
+    if (!ocPop || ocPop.id !== c.id) return "";
+    const k = ocPop.key, v = c.times[k];
+    const near = (c.transmissions || []).slice().sort((a, b) => b.time - a.time).slice(0, 8);
+    return `<div class="steppanel">
+      <div class="sp-h"><b>${esc(label(k))}</b><span class="hint" style="margin:0">${esc(STEP_HINT[k] || "")}</span><button class="ghost x" data-popclose="1">✕</button></div>
+      <div class="sp-row">
+        <button class="primary" data-setnow="${c.id}:${k}">Now (${hm(Date.now())})</button>
+        <span class="or">or</span>
+        <input type="time" step="1" id="sp-time" value="${v ? hms(v.t) : hms(Date.now())}" style="max-width:150px">
+        <button data-settime="${c.id}:${k}">Set time</button>
+        ${v ? `<button class="ghost" data-setclear="${c.id}:${k}">${v.src === "marked" ? "Remove my mark" : "Clear"}</button>` : ""}
+      </div>
+      ${v ? `<div class="hint" style="margin:6px 0 0">Currently ${hms(v.t)} · ${v.src === "marked" ? "marked by " + esc(v.by || "someone") : "from the radio"}</div>` : ""}
+      ${near.length ? `<div class="sp-radio"><div class="hint" style="margin:8px 0 4px">Or use the time of a radio transmission:</div>
+        ${near.map(e => `<button class="ghost rtx" data-setradio="${c.id}:${k}:${e.time}"><span class="tt">${hms(e.time)}</span> ${esc(e.text).slice(0, 90)}</button>`).join("")}</div>` : ""}
+    </div>`;
+  }
+  function durations(c){
+    const start = startOf(c), scene = T(c, "onscene"), end = T(c, "clear"), leave = T(c, "transport") || end;
+    const live = isOpen(c);
+    const pc = T(c, "contact"), vt = T(c, "vitals");
+    return [["Response", start && scene ? dur(scene - start) : (live && start && !scene ? dur(Date.now() - start) + "…" : "—")],
+            ["To pt contact", scene && pc ? dur(pc - scene) : "—"],
+            ["To vitals", pc && vt ? dur(vt - pc) : "—"],
+            ["On scene", scene && leave ? dur(leave - scene) : (live && scene ? dur(Date.now() - scene) + "…" : "—")],
+            ["Total", start && end ? dur(end - start) : (live ? dur(Date.now() - start) + "…" : "—")]];
+  }
+
+  function acuSelect(c){
+    return `<select class="acusel ${c.acuity || "unk"}" data-acuity="${c.id}" title="${esc((c.acuity_why || []).join(", ") || "Not enough info yet")}">
+      <option value="" ${!c.acuity ? "selected" : ""}>Acuity ?</option>
+      <option value="high" ${c.acuity === "high" ? "selected" : ""}>HIGH ACUITY</option>
+      <option value="low" ${c.acuity === "low" ? "selected" : ""}>LOW ACUITY</option></select>`;
+  }
+  function fullCard(c){
+    const nx = nextStep(c), open = isOpen(c);
+    const outcomes = oc.outcomes.map(o => `<option ${o === c.outcome ? "selected" : ""} value="${esc(o)}">${o ? esc(o) : "How did it end?"}</option>`).join("");
+    const radio = (c.transmissions || []).slice().reverse().map(e => `<div><span class="tt">${hms(e.time)}</span><span class="tx">${esc(e.text)}</span>
+      ${e.audio_url ? `<button class="play" data-audio="${esc(e.audio_url)}">▶</button>` : "<span></span>"}</div>`).join("");
+    const why = (c.acuity_why || []).filter(w => w !== "set by crew").join(", ");
+    const needOutcome = T(c, "clear") && !c.outcome;
+    return `<div class="ocall ${c.acuity === "high" ? "hi" : ""} ${open ? "active" : "done"}" id="call-${c.id}">
+      <div class="oh">
+        <div style="min-width:0">
+          <input class="title" data-field="title" data-id="${c.id}" value="${esc(c.title || "")}" placeholder="What's the call?">
+          <input class="loc" data-field="location" data-id="${c.id}" value="${esc(c.location || "")}" placeholder="Where?">
+          ${c.ai_summary ? `<div class="aisum"><b>Summary:</b> ${esc(c.ai_summary)}</div>` : ""}
+          <div class="sub">${c.source && c.source !== "Radio" ? `<span class="srcchip">${esc(c.source)}</span>` : ""}${acuSelect(c)} ${why ? `<span class="acu-why">${esc(why)}</span> · ` : ""}${hm(startOf(c))}${(c.units || []).length ? " · " + esc(c.units.join(", ")) : ""}</div>
+        </div>
+        <div class="side">${!open ? `<button class="ghost small" data-collapse="${c.id}">Fold ▴</button>` : ""}
+          <button class="ghost trash" data-del="${c.id}" title="Delete this call">Delete</button></div>
+      </div>
+      ${open && nx ? `<button class="bignext" data-setnow="${c.id}:${nx}">✓ ${esc(NEXT_LABEL[nx])}</button>` : ""}
+      ${needOutcome ? `<div class="askout"><b>How did it end?</b><select data-field="outcome" data-id="${c.id}">${outcomes}</select></div>` : ""}
+      ${stepper(c)}
+      ${stepPanel(c)}
+      <div class="durs">${durations(c).map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("")}</div>
+      <details class="more-details" ${ocDetails.has(c.id) ? "open" : ""} data-details="${c.id}"><summary>Notes, outcome &amp; radio${c.notes ? " · has notes" : ""}${c.outcome ? " · " + esc(c.outcome) : ""}</summary>
+        <div class="body">
+          <div>
+            ${needOutcome ? "" : `<label class="lab">Outcome</label><select data-field="outcome" data-id="${c.id}">${outcomes}</select>`}
+            <label class="lab">Notes</label><textarea data-field="notes" data-id="${c.id}" placeholder="Patient, care given, anything to remember…">${esc(c.notes || "")}</textarea>
+            <label class="lab">Responders</label><input data-field="responders" data-id="${c.id}" value="${esc(c.responders || "")}" placeholder="Who went?">
+          </div>
+          <div><label class="lab">Radio traffic (${(c.transmissions || []).length})</label>
+            <div class="radio">${radio || `<div><span></span><span class="tx" style="color:var(--muted)">Nothing from the radio is linked to this call.</span><span></span></div>`}</div></div>
+        </div>
+        <div class="foot">Added by ${esc(c.created_by || "someone")}${(c.harvard_terms || []).length ? " · heard: " + esc(c.harvard_terms.join(", ")) : ""}</div>
+      </details>
+    </div>`;
+  }
+  function rowCard(c){
+    const dd = durations(c), resp = dd[0], tot = dd[dd.length - 1];
+    return `<button class="ocrow" data-expand="${c.id}">
+      <span class="d">${new Date(startOf(c)).toLocaleDateString([], {month: "short", day: "numeric"})}<br>${hm(startOf(c))}</span>
+      <span class="w"><b>${esc(c.title || "Untitled call")}</b> ${acuBadge(c.acuity, c.acuity_why)}<br><span class="muted">${esc(c.location || "No location")}</span></span>
+      <span class="n">Response <b>${resp[1]}</b><br>Total <b>${tot[1]}</b></span>
+      <span class="o">${esc(c.outcome || "No outcome")}</span><span class="chev">▾</span></button>`;
+  }
+
+  function renderCalls(){
+    $("#callsBadge").textContent = oc.calls.filter(isOpen).length || oc.calls.length;
+    $("#callsBadge").classList.toggle("hot", oc.calls.some(isOpen));
+    renderOnCallBar();
+    const view = $("#callsView");
+    const ae = document.activeElement;
+    if (view.contains(ae) && ae.matches("input,textarea,select")) { ocPending = true; return; }  // don't clobber typing
+    ocPending = false;
+    const q = $("#callSearch").value.trim().toLowerCase();
+    const match = c => !q || [c.title, c.location, c.notes, c.outcome, c.responders].join(" ").toLowerCase().includes(q);
+    const active = oc.calls.filter(c => isOpen(c) && match(c));
+    const past = oc.calls.filter(c => !isOpen(c) && match(c));
+    $("#callsList").innerHTML =
+      (active.length ? `<h3 class="grp">On call now</h3>` + active.map(fullCard).join("") : "") +
+      (past.length ? `<h3 class="grp">Past calls</h3>` + past.map(c => ocOpen.has(c.id) ? fullCard(c) : rowCard(c)).join("") : "") +
+      (!active.length && !past.length ? `<div class="emptybig">${q ? "No calls match your search." :
+        `<b>No calls yet.</b><br>When the alarm goes off, press <b>WE'RE RESPONDING</b>.<br>Or use <b>＋ We responded</b> on the call board, or <b>+ New call</b> above.`}</div>` : "");
+    const sg = [];                                   // Our calls only lists calls the crew responded to
+    $("#suggest").hidden = true;
+    $("#suggest").innerHTML = `<div class="h">Heard on the radio · did you respond to any of these?</div>` + sg.map(x =>
+      `<div class="sugg"><span class="t">${esc(x.title)}${x.harvard === "medium" ? ' <span class="badge hv medium">possible</span>' : ' <span class="badge hv">HARVARD</span>'}</span>
+       <span class="m">${esc(x.location)} · ${hm(x.opened)}${x.closed ? " · over" : ""}</span>
+       <button data-addinc="${x.incident_id}">＋ We responded</button></div>`).join("");
+  }
+  // "On call" bar on the Live view: mark the next step without switching tabs
+  function renderOnCallBar(){
+    const act = oc.calls.filter(isOpen).slice(0, 3);
+    $("#onCallBar").innerHTML = act.map(c => { const nx = nextStep(c), last = FLOW.slice().reverse().find(k => c.times[k]);
+      return `<div class="oncall"><span class="pulse"></span>
+        <span class="w"><b>On call:</b> ${esc(callName(c))}<span class="muted"> · ${last ? esc(label(last)).toLowerCase() + " " + dur(Date.now() - T(c, last)) + " ago" : "started " + dur(Date.now() - startOf(c)) + " ago"}</span></span>
+        ${nx ? `<button class="primary" data-setnow="${c.id}:${nx}">✓ ${esc(NEXT_LABEL[nx])}</button>` : ""}
+        <button class="ghost" data-opencall="${c.id}">Open</button></div>`; }).join("");
+  }
+  setInterval(() => { if (oc.calls.some(isOpen)) renderCalls(); }, 15000);
+  $("#callsView").addEventListener("focusout", () => setTimeout(() => { if (ocPending) renderCalls(); }, 50));
+  $("#callSearch").oninput = () => { ocPending = false; renderCalls(); };
+
+  async function addFromIncident(incId, mark){
+    const by = await askName();
+    const c = await ocPost("add", {incident_id: incId, by, mark});
+    if (c) { putCall(c); toast("Added to Our calls"); setView("calls"); renderCalls(); renderBoard(); }
+    return c;
+  }
+  // ---- log a call that wasn't heard on the radio
+  const SRC_DEFAULT = ["Flag-down", "Walk-in", "Phone / HUPD call", "Event standby", "Other"];
+  function ncReset(){
+    ["#ncWhat", "#ncWhere", "#ncNotes"].forEach(id => $(id).value = "");
+    $("#ncSource").innerHTML = ((oc.sources || []).filter(x => x !== "Radio").length ? oc.sources.filter(x => x !== "Radio") : SRC_DEFAULT)
+      .map((x, i) => `<button data-v="${esc(x)}" class="${i === 0 ? "on" : ""}">${esc(x)}</button>`).join("");
+    document.querySelectorAll("#ncAcuity button, #ncWhen button").forEach(b => b.classList.toggle("on", b.dataset.v === "" || b.dataset.v === "now"));
+    $("#ncTime").hidden = true; $("#ncTime").value = hm(Date.now());
+  }
+  const segVal = id => { const b = document.querySelector(id + " button.on"); return b ? b.dataset.v : ""; };
+  document.addEventListener("click", e => {
+    const b = e.target.closest(".seg button"); if (!b) return;
+    b.parentElement.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+    if (b.parentElement.id === "ncWhen") { $("#ncTime").hidden = b.dataset.v !== "earlier"; if (b.dataset.v === "earlier") $("#ncTime").focus(); }
+  });
+  $("#newCall").onclick = () => { ncReset(); $("#newCallBox").hidden = false; $("#newCallBox").scrollIntoView({block: "start", behavior: "smooth"}); $("#ncWhat").focus(); };
+  $("#ncClose").onclick = () => { $("#newCallBox").hidden = true; };
+  async function ncSubmit(past){
+    const what = $("#ncWhat").value.trim(), where = $("#ncWhere").value.trim();
+    if (!what && !where) { toast("Add what happened or where"); $("#ncWhat").focus(); return; }
+    let start = Date.now();
+    if (segVal("#ncWhen") === "earlier" && $("#ncTime").value) {
+      const [h, m] = $("#ncTime").value.split(":").map(Number); const d = new Date(); d.setHours(h, m, 0, 0);
+      if (d.getTime() > Date.now() + 60e3) d.setDate(d.getDate() - 1);   // "23:50" typed just after midnight
+      start = d.getTime();
+    }
+    const source = segVal("#ncSource");
+    const times = {alerted: start};
+    if (!past && ["Flag-down", "Walk-in"].includes(source)) { times.enroute = start; times.onscene = start; }   // the patient came to us
+    const by = await askName();
+    const c = await ocPost("add", {by, title: what, location: where, source, acuity: segVal("#ncAcuity") || null,
+      notes: $("#ncNotes").value.trim(), times, after_the_fact: past});
+    if (!c) return;
+    putCall(c); $("#newCallBox").hidden = true;
+    if (past) { ocOpen.add(c.id); store.set("openCalls", [...ocOpen]); }
+    renderCalls();
+    setTimeout(() => { const el = $("#call-" + c.id); if (el) el.scrollIntoView({behavior: "smooth", block: "start"}); }, 50);
+    toast(past ? "Logged. Tap each step to fill in the times" : "Call started. Use the big button as you go");
+  }
+  $("#ncStart").onclick = () => ncSubmit(false);
+  $("#ncPast").onclick = () => ncSubmit(true);
+  $("#exportCsv").onclick = () => {
+    const fmtFull = ms => ms ? new Date(ms).toLocaleString() : "";
+    const rows = [["Call", "Location", "Outcome", "Responders", ...oc.milestones.map(m => m[1]), "Response time", "On scene → pt contact", "Pt contact → vitals", "Total time", "Notes"]];
+    oc.calls.slice().reverse().forEach(c => {
+      const st = startOf(c);
+      rows.push([c.title, c.location, c.outcome, c.responders, ...oc.milestones.map(m => fmtFull(T(c, m[0]))),
+        st && T(c, "onscene") ? dur(T(c, "onscene") - st) : "",
+        T(c, "onscene") && T(c, "contact") ? dur(T(c, "contact") - T(c, "onscene")) : "",
+        T(c, "contact") && T(c, "vitals") ? dur(T(c, "vitals") - T(c, "contact")) : "",
+        st && T(c, "clear") ? dur(T(c, "clear") - st) : "", c.notes]);
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type: "text/csv"}));
+    a.download = `crimson-calls-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+  };
+  document.addEventListener("click", async e => {
+    const b = e.target.closest("button"); if (!b) return;
+    const d = b.dataset;
+    if (d.addinc || d.respondinc) { b.disabled = true; await addFromIncident(d.addinc || d.respondinc); return; }
+    if (d.opencall) { setView("calls"); ocOpen.add(d.opencall); renderCalls(); setTimeout(() => { const el = $("#call-" + d.opencall); if (el) el.scrollIntoView({behavior: "smooth", block: "start"}); }, 250); return; }
+    if (d.expand) { ocOpen.add(d.expand); store.set("openCalls", [...ocOpen]); renderCalls(); return; }
+    if (d.collapse) { ocOpen.delete(d.collapse); store.set("openCalls", [...ocOpen]); ocPop = null; renderCalls(); return; }
+    if (d.step) { const [id, key] = d.step.split(":"); ocPop = ocPop && ocPop.id === id && ocPop.key === key ? null : {id, key}; ocPending = false; renderCalls(); return; }
+    if (d.popclose) { ocPop = null; renderCalls(); return; }
+    if (d.setnow) { const [id, key] = d.setnow.split(":"); b.disabled = true; await setStep(id, key, "now"); return; }
+    if (d.setclear) { const [id, key] = d.setclear.split(":"); await setStep(id, key, null); return; }
+    if (d.setradio) { const [id, key, t] = d.setradio.split(":"); await setStep(id, key, +t); return; }
+    if (d.settime) { const [id, key] = d.settime.split(":"); const c = oc.calls.find(x => x.id === id); const v = $("#sp-time").value;
+      if (c && v) await setStep(id, key, timeFromInput(c, key, v)); return; }
+    if (d.del) {
+      const r = await ocPost("delete", {id: d.del}); if (!r || !r.deleted) return;
+      oc.calls = oc.calls.filter(x => x.id !== d.del); ocPop = null; renderCalls(); renderBoard();
+      toastUndo(`Deleted “${r.call && r.call.title || "call"}”`, async () => { const c = await ocPost("restore", {call: r.call}); if (c) { putCall(c); renderCalls(); renderBoard(); } });
+      return;
+    }
+    if (d.moretimes) { ocMore.has(d.moretimes) ? ocMore.delete(d.moretimes) : ocMore.add(d.moretimes); renderCalls(); return; }
+    if (d.dismissinc) {
+      b.disabled = true;
+      const r = await fetch("/api/board/dismiss", {method: "POST", headers: adminHeaders(), body: JSON.stringify({id: d.dismissinc, by: store.get("name", "")})});
+      toast(r.ok ? "Removed from the board" : "Couldn't remove it");
+      return;
+    }
+  });
+  document.addEventListener("change", async e => {
+    const el = e.target;
+    if (el.dataset.mergeinc && el.value) {
+      const dst = el.value; el.disabled = true;
+      const r = await fetch("/api/board/merge", {method: "POST", headers: adminHeaders(), body: JSON.stringify({src: el.dataset.mergeinc, dst, by: store.get("name", "")})});
+      toast(r.ok ? "Merged into one call" : "Couldn't merge those"); return;
+    }
+    if (el.dataset.acuity) {
+      const r = await ocPost("acuity", {id: el.dataset.acuity, acuity: el.value}); if (r) { putCall(r); el.blur(); renderCalls(); } return;
+    }
+    if (el.dataset.field && el.dataset.id && $("#callsView").contains(el)) {
+      const r = await ocPost("update", {id: el.dataset.id, fields: {[el.dataset.field]: el.value}});
+      if (r) { putCall(r); if (el.dataset.field === "outcome") { el.blur(); renderCalls(); } }
+    }
+  });
+  $("#btnMore").onclick = e => { e.stopPropagation(); $("#moreMenu").hidden = !$("#moreMenu").hidden; };
+  document.addEventListener("click", e => { if (!e.target.closest(".more")) $("#moreMenu").hidden = true; else if (e.target.closest(".menu button")) $("#moreMenu").hidden = true; });
+  document.addEventListener("toggle", e => { const d = e.target.dataset && e.target.dataset.details; if (d) { e.target.open ? ocDetails.add(d) : ocDetails.delete(d); } }, true);
+  if (store.get("view", "live") === "calls") setView("calls");
+  loadCalls();
+
+  // ------------------------------------------------------------------ live monitor: real-time clock in the corner
+  if (!window.CRIMSON_DEMO) {
+    $("#demoClock").classList.add("live"); $("#demoClock").hidden = false;
+    const tick = () => { const now = new Date();
+      $("#dcReal").textContent = now.toLocaleTimeString([], {hour: "numeric", minute: "2-digit", second: "2-digit"});
+      $("#dcRealSub").textContent = now.toLocaleDateString([], {weekday: "short", month: "short", day: "numeric"}); };
+    setInterval(tick, 500); tick();
+  }
+
+  // ------------------------------------------------------------------ demo mode (separate port)
+  if (window.CRIMSON_DEMO) (function(){
+    document.body.classList.add("demo");
+    document.title = "DEMO · Crimson Dispatch Watch";
+    $(".brand").lastChild.textContent = "Crimson EMS · Dispatch Watch (DEMO)";
+    $("#demoBar").hidden = false;
+    const rb = $("#btnReplay"); if (rb) rb.hidden = true;
+    const toLocal = d => { const z = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
+    let speeds = [1, 2, 5, 10, 30], speed = store.get("demoSpeed", 5), ds = {state: "idle"};
+    function renderSpeeds(){
+      $("#dbSpeed").innerHTML = speeds.map(x => `<button data-v="${x}" class="${x === speed ? "on" : ""}">${x}×</button>`).join("");
+    }
+    function renderDemo(){
+      const playing = ds.state === "playing", paused = ds.state === "paused", prep = ds.state === "preparing";
+      $("#dbStart").textContent = (playing || paused) ? "↻ Restart" : "▶ Play";
+      $("#dbPause").hidden = !(playing || paused); $("#dbPause").textContent = paused ? "Resume" : "Pause";
+      $("#dbStop").hidden = !(playing || paused || prep);
+      $("#dbPause").hidden = !(playing || paused);
+      if (prep) $("#dbStart").textContent = "↻ Restart";
+      const at = ds.at ? new Date(ds.at).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}) : "";
+      const pct = ds.total ? Math.round(100 * ds.done / ds.total) : 0;
+      const note = ds.note ? `<div style="color:#ffd28a;margin-top:4px">${esc(ds.note)}</div>` : "";
+      if (prep) {
+        const pp = ds.prep_total ? Math.round(100 * ds.prep_done / ds.prep_total) : 0;
+        $("#dbProg").innerHTML = ds.prep_total
+          ? `Getting ready: transcribing ${ds.prep_done} of ${ds.prep_total} clips that weren't in the logs (live calls go first)…<progress max="100" value="${pp}"></progress>${note}`
+          : `Getting ready: checking OpenMHz for calls in that window…${note}`;
+        return;
+      }
+      if (ds.state === "error") { $("#dbProg").innerHTML = `Couldn't start the demo.${note || ""}`; return; }
+      $("#dbProg").innerHTML = ds.state === "idle" ? "Pick a past alarm (or any time window) and press Play. Calls missing from the logs are transcribed first. 5× speed works well for demos." :
+        `${{playing: "Playing", paused: "Paused", finished: "Finished", stopped: "Stopped"}[ds.state] || ds.state}${ds.label ? " · " + esc(ds.label) : ""}` +
+        ` · ${ds.done}/${ds.total} calls${at ? " · recorded at " + at : ""} · ${ds.speed || speed}×` +
+        `<progress max="100" value="${pct}"></progress>` + note;
+    }
+    async function post(action, body){
+      const r = await fetch("/api/demo/" + action, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body || {})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { toast(j.error || "Demo error"); return null; }
+      ds = j; renderDemo(); return j;
+    }
+    async function load(){
+      const j = await (await fetch("/api/demo")).json();
+      ds = j.status; speeds = j.speeds || speeds;
+      $("#dbMoment").innerHTML = `<option value="">Choose a moment…</option>` + (j.moments || []).map(m =>
+        `<option value="${m.time}">${new Date(m.time).toLocaleString([], {weekday: "short", hour: "numeric", minute: "2-digit"})} · ${m.level === "high" ? "HIGH" : "possible"}${m.acuity ? " · " + m.acuity + " acuity" : ""} · ${esc(m.terms.join(", "))} · “${esc(m.text.slice(0, 60))}”</option>`).join("");
+      if (!$("#dbFrom").value) { const end = new Date(Date.now() - 3600e3); $("#dbFrom").value = toLocal(new Date(end - 20 * 60e3)); $("#dbTo").value = toLocal(end); }
+      renderSpeeds(); renderDemo();
+    }
+    $("#dbMoment").onchange = e => {
+      const t = +e.target.value; if (!t) return;
+      $("#dbFrom").value = toLocal(new Date(t - 3 * 60e3)); $("#dbTo").value = toLocal(new Date(t + 12 * 60e3));
+    };
+    $("#dbSpeed").addEventListener("click", async e => {
+      const b = e.target.closest("button"); if (!b) return;
+      speed = +b.dataset.v; store.set("demoSpeed", speed); renderSpeeds();
+      if (ds.state === "playing" || ds.state === "paused") await post("speed", {speed});
+    });
+    $("#dbStart").onclick = async () => {
+      const sel = $("#dbMoment"), label = sel.value ? sel.options[sel.selectedIndex].text.split(" · “")[0] : "";
+      if (!$("#dbFrom").value || !$("#dbTo").value) return toast("Pick a moment or a From/To time");
+      await post("start", {from: $("#dbFrom").value, to: $("#dbTo").value, speed, label});
+    };
+    $("#dbPause").onclick = () => post("pause", {on: ds.state !== "paused"});
+    $("#dbStop").onclick = () => post("stop");
+    window.__demoAttach = src => {             // re-attached by connect() after every reconnect
+      src.addEventListener("demo_status", e => { ds = JSON.parse(e.data); renderDemo(); });
+      src.addEventListener("demo_reset", () => { state.calls = []; state.alerts = []; renderFeed(); renderAlerts();
+        $("#active").classList.remove("show"); stopAlarmLoop(); loadState().catch(() => {}); loadCalls(); });
+    };
+    if (es) window.__demoAttach(es);
+    // ---- corner clocks: replay time (the recorded radio's own clock, ticking at demo speed) + real time
+    $("#demoClock").hidden = false;
+    const fmtT = d => d.toLocaleTimeString([], {hour: "numeric", minute: "2-digit", second: "2-digit"});
+    const fmtD = d => d.toLocaleDateString([], {weekday: "short", month: "short", day: "numeric"});
+    let skew = 0;                                   // server clock - this device's clock
+    fetch("/api/demo").then(r => { const sd = Date.parse(r.headers.get("Date") || ""); if (sd && Math.abs(sd - Date.now()) > 2000) skew = sd - Date.now(); }).catch(() => {});
+    function tickClocks(){
+      const c = ds.clock, live = ds.state === "playing";
+      $("#demoClock").classList.toggle("paused", ds.state === "paused");
+      if (!c || !["playing", "paused", "finished", "stopped"].includes(ds.state)) {
+        $("#dcRep").textContent = "--:--:--";
+        $("#dcRepSub").textContent = ds.state === "preparing" ? "getting ready…" : "not playing"; return;
+      }
+      const t = new Date(c.frozen != null || !live ? (c.frozen ?? c.src) : c.src + (Date.now() + skew - c.wall) * c.speed);
+      $("#dcRep").textContent = fmtT(t);
+      $("#dcRepSub").textContent = fmtD(t) + " · " + (live ? `${c.speed}× speed` : {paused: "paused", finished: "finished", stopped: "stopped"}[ds.state]);
+    }
+    setInterval(tickClocks, 200); tickClocks();
+    load();
+  })();
+})();
+</script>
+</body>
+</html>

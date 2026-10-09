@@ -1,0 +1,17 @@
+# Crimson dispatch: keep private data, secrets and big files out of git.
+
+# Call logs, Our-calls log (can contain patient notes), transcripts, training audio
+logs/
+# Phone push topic, admin key, API keys
+settings.env
+# Chrome session / cookies used to reach OpenMHz
+.browser-profile/
+# Python environment and Whisper models (GBs; install.command recreates them)
+.venv/
+.venv.old.*/
+models/
+
+__pycache__/
+*.pyc
+*.tmp
+.DS_Store
