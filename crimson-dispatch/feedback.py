@@ -148,7 +148,24 @@ class FeedbackStore:
 
     def clip_verdicts(self):
         with self.lock:
-            return {k: {"verdict": r["verdict"], "text": r["text"]} for k, r in self.clips.items()}
+            return {k: {"verdict": r["verdict"], "text": r["text"], "audio": bool(r.get("audio"))} for k, r in self.clips.items()}
+
+    def audio_path(self, key):
+        r = self.clips.get(self.clip_key(key, None))
+        p = r and r.get("audio") and os.path.join(self.dir, r["audio"])
+        return p if p and os.path.isfile(p) and os.path.realpath(p).startswith(os.path.realpath(self.audio_dir)) else None
+
+    # ---------------------------------------------------------------- call board corrections
+    def record_board(self, src, audio_url, dst=None, by=None):
+        """A transmission the board put in the wrong call (for tuning how radio is matched to calls)."""
+        rec = {"at": _now_ms(), "by": (by or "")[:40], "audio_url": audio_url, "action": "move" if dst else "remove",
+               "from": {"id": src["id"], "complaint": src.get("complaint"), "address": src.get("address"), "place": src.get("place")},
+               "to": {"id": dst["id"], "complaint": dst.get("complaint"), "address": dst.get("address"), "place": dst.get("place")} if dst else None,
+               "text": next((e["text"] for e in ((dst or {}).get("timeline") or []) + (src.get("timeline") or [])
+                             if e.get("audio_url") == audio_url), None)}
+        with self.lock:
+            self._append(os.path.join(self.dir, "board.jsonl"), rec)
+        return rec
 
     # ---------------------------------------------------------------- learned fixes
     def _rebuild_fixes(self):

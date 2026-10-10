@@ -35,7 +35,7 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from matcher import Matcher, looks_like_dispatch, LEVEL_RANK
-from board import Board
+from board import Board, call_kind, parse as parse_radio
 from ai import ClaudeReader
 from demo import DemoController, DemoFetcher
 from acuity import classify as classify_acuity
@@ -818,7 +818,15 @@ class Monitor:
         if text:
             log(f"[{tg_name}] {text}" + (f"   <-- {[h['term'] for h in hits]}" if hits else ""))
         if hits and (not backfill or backfill == "rewind"):
-            self.raise_alert(rec, hits, context_text)
+            # EMS only: a Harvard fire alarm / odor / elevator call doesn't alarm; an actual fire at Harvard does
+            kind = self.board.kind_of(rec["audio_url"])
+            if kind is None:
+                p = parse_radio(context_text, tg_name)
+                kind = call_kind(p["complaint"], p["units"], [context_text])
+            if kind == "fire":
+                log(f"(Harvard fire call that isn't an actual fire: no alert) {[h['term'] for h in hits]}")
+            else:
+                self.raise_alert(rec, hits, context_text)
 
     def raise_alert(self, rec, hits, context_text):
         level = "high" if any(h["level"] == "high" for h in hits) else "medium"
@@ -942,6 +950,88 @@ class Monitor:
                 if inc:
                     self.ai.queue(inc)
 
+    BOARD_FIXES = os.path.join(LOG_DIR, "board-fixes.json")
+
+    def load_board_fixes(self):
+        try:
+            with open(self.BOARD_FIXES) as f:
+                self.board.fixes = json.load(f)
+        except (OSError, ValueError):
+            pass
+
+    def board_fix(self, iid, audio_url, to_iid=None, by=None):
+        """Crew says a transmission was wrongly put in a call: take it out (or move it to the right call)."""
+        out = self.board.detach(iid, audio_url, to_iid)
+        if not out:
+            return None
+        src, dst = out
+        if not getattr(self, "log_tag", None):             # live board only: remember it across restarts
+            try:
+                tmp = self.BOARD_FIXES + ".tmp"
+                with open(tmp, "w") as f:
+                    json.dump(self.board.fixes, f)
+                os.replace(tmp, self.BOARD_FIXES)
+            except OSError:
+                pass
+        if self.feedback:
+            self.feedback.record_board(src, audio_url, dst, by)
+        self._publish_board()
+        if self.ai:
+            for inc in (src, dst):
+                if inc and not inc.get("dismissed"):
+                    self.ai.queue(inc)
+        line = next((e["text"] for e in (dst or src)["timeline"] if e.get("audio_url") == audio_url), "")
+        log(f"Board fix by {by or 'someone'}: \"{line[:60]}\" " + (f"moved to {dst['id']}" if dst else f"removed from {src['id']}"))
+        return {"from": src, "to": dst}
+
+    def radio_context(self, hours=6, max_lines=1400):
+        """Text for 'Ask the radio': the call board plus recent transcripts (radio only: no crew notes)."""
+        now = now_ms()
+        since = now - hours * 3600_000
+        recs = {}
+        if not getattr(self, "log_tag", None):          # live: today's / yesterday's logs cover more than memory
+            for f in sorted(glob.glob(os.path.join(LOG_DIR, "calls-*.jsonl")))[-2:]:
+                try:
+                    with open(f) as fh:
+                        for line in fh:
+                            try:
+                                r = json.loads(line)
+                            except ValueError:
+                                continue
+                            if r.get("time", 0) >= since and r.get("id"):
+                                recs[r["id"]] = r
+                except OSError:
+                    pass
+        with self.lock:
+            for r in self.calls:
+                if r.get("time", 0) >= since:
+                    recs[r.get("id") or r.get("audio_url")] = r
+        lines = []
+        for r in sorted(recs.values(), key=lambda r: r["time"]):
+            t = r.get("text") or ""
+            if not t and r.get("raw_text"):
+                t = f"(unclear) {r['raw_text']}"
+            if t:
+                lines.append((r["time"], f"{dt.datetime.fromtimestamp(r['time'] / 1000):%H:%M:%S} [{r.get('talkgroup_name', '')}] {t}"))
+        lines = lines[-max_lines:]
+        b = self.board.snapshot()
+        def inc_line(i, closed):
+            units = ", ".join(f"{u['unit']} ({u['status']})" for u in i["units"]) or "no unit named"
+            where = " / ".join(x for x in [i.get("address"), i.get("place"), i.get("town")] if x) or "location unclear"
+            return (f"- {'CLOSED ' if closed else ''}{i.get('complaint') or 'Call'} at {where}; units: {units}; "
+                    f"status {i.get('status')}; opened {dt.datetime.fromtimestamp(i['opened'] / 1000):%H:%M}"
+                    + (f"; HARVARD ({', '.join(i.get('harvard_terms') or [])})" if i.get("harvard") else "")
+                    + (f"; summary: {i['ai_summary']}" if i.get("ai_summary") else ""))
+        board = [inc_line(i, False) for i in b["incidents"]] + [inc_line(i, True) for i in b["closed"][:15]]
+        alerts = [f"- {dt.datetime.fromtimestamp(a['time'] / 1000):%H:%M:%S} {a['level']} Harvard alert: "
+                  f"{', '.join(h['term'] for h in a['hits'])}" + (" (dismissed / false alarm)" if a.get("dismissed") else "")
+                  for a in list(self.alerts)[-15:] if not a.get("test")]
+        txt = (f"Current time: {dt.datetime.now():%A %b %d, %H:%M:%S} (local)\n\n"
+               f"CALL BOARD (auto-built, may be incomplete):\n" + ("\n".join(board) or "(empty)") +
+               "\n\nHARVARD ALERTS:\n" + ("\n".join(alerts) or "(none)") +
+               f"\n\nRADIO TRANSCRIPTS, last {hours} h, oldest first ({len(lines)} lines):\n" + "\n".join(l for _, l in lines))
+        return txt, [(t, l) for t, l in lines], recs
+
     def other_calls_for_ai(self, inc):
         snap = self.board.snapshot()
         out = []
@@ -986,9 +1076,55 @@ class Monitor:
             self.hub.publish("alert_update", a)
         return len(hit)
 
+    def nearby_for_ai(self, inc):
+        """Radio on the call's channels around its time that isn't on this card (for the AI check)."""
+        lines = [e for e in inc.get("timeline", []) if not e.get("note")]
+        if not lines:
+            return []
+        on = {e.get("audio_url") for e in lines}
+        tgs = {e.get("talkgroup_name") for e in lines}
+        t0, t1 = lines[0]["time"] - 120_000, max(e["time"] for e in lines) + 15 * 60_000
+        where = {}
+        b = self.board.snapshot()
+        for i in b["incidents"] + b["closed"]:
+            for e in i["timeline"]:
+                if e.get("audio_url"):
+                    where[e["audio_url"]] = f"{i.get('complaint') or 'call'} at {i.get('address') or i.get('place') or '?'}"
+        out = []
+        with self.lock:
+            recs = list(self.calls)
+        for r in recs:
+            if r.get("talkgroup_name") in tgs and t0 <= r["time"] <= t1 and r.get("text") and r.get("audio_url") not in on:
+                out.append({"time": r["time"], "talkgroup_name": r["talkgroup_name"], "text": r["text"],
+                            "audio_url": r["audio_url"], "on_call": where.get(r["audio_url"])})
+        return out[-45:]
+
+    def _apply_ai_lines(self, iid, res):
+        """The AI check says some radio is on the wrong card: move it (never against a crew correction)."""
+        if (res.get("confidence") or 0) < 0.7:
+            return
+        moved = 0
+        for url in res.get("remove_audio") or []:
+            if not self.board.crew_placed(url) and self.board.detach(iid, url, record=False):
+                moved += 1
+        recs = {r.get("audio_url"): r for r in list(self.calls)}
+        for url in res.get("add_audio") or []:
+            if self.board.crew_placed(url):
+                continue
+            src = next((i for i in self.board.snapshot()["incidents"] if any(e.get("audio_url") == url for e in i["timeline"])), None)
+            if src and src["id"] != iid:
+                if self.board.detach(src["id"], url, to_iid=iid, record=False):
+                    moved += 1
+            elif not src and recs.get(url):
+                if self.board.attach(iid, recs[url]):
+                    moved += 1
+        if moved:
+            log(f"AI check moved {moved} radio line(s) on call {iid}")
+
     def apply_ai(self, iid, res):
         """Claude finished reading a call: update the board, its alerts, and raise a 'possible Harvard'
         alert if Claude found a Harvard location the keywords missed."""
+        self._apply_ai_lines(iid, res)
         inc = self.board.apply_ai(iid, res)
         if not inc:
             return
@@ -1281,6 +1417,19 @@ def make_handler(monitor, config, hub, args, demo=None):
                 if base and dest:
                     out.update(travel(base, dest))
                 self._json(out, 200 if dest else 404)
+            elif p == "/api/clipaudio":
+                qs = dict(urllib.parse.parse_qsl(urllib.parse.urlparse(self.path).query))
+                path = monitor.feedback.audio_path(qs.get("key", "")) if monitor.feedback else None
+                if not path:
+                    return self._json({"error": "not found"}, 404)
+                with open(path, "rb") as f:
+                    data = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/mpeg")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "max-age=86400")
+                self.end_headers()
+                self.wfile.write(data)
             elif p == "/api/feedback":
                 fb = monitor.feedback
                 if not fb:
@@ -1369,6 +1518,33 @@ def make_handler(monitor, config, hub, args, demo=None):
                 if merged:
                     monitor._publish_board()
                 return self._json(merged or {"error": "couldn't merge those"}, 200 if merged else 400)
+            if p == "/api/ask":
+                reader = monitor.ai or getattr(monitor, "asker", None)
+                if not reader:
+                    return self._json({"error": "AI is off (start the server without --no-ai, with Claude Code installed)."}, 503)
+                q = str(body.get("question") or "").strip()
+                if not q:
+                    return self._json({"error": "Ask a question"}, 400)
+                hist = body.get("history") if isinstance(body.get("history"), list) else []
+                t0 = time.time()
+                ctx, lines, recs = monitor.radio_context(hours=min(24, max(1, int(body.get("hours") or 6))))
+                try:
+                    out = reader.ask_radio(q, ctx, hist)
+                except Exception as e:
+                    return self._json({"error": f"AI couldn't answer: {e}"}, 502)
+                # turn the cited times into playable lines
+                by_time = {}
+                for r in recs.values():
+                    by_time.setdefault(f"{dt.datetime.fromtimestamp(r['time'] / 1000):%H:%M:%S}", r)
+                cites = []
+                for ts in (out.get("cited_times") or [])[:8]:
+                    r = by_time.get(str(ts).strip()[:8])
+                    if r:
+                        cites.append({"time": r["time"], "talkgroup_name": r.get("talkgroup_name"),
+                                      "text": r.get("text") or r.get("raw_text") or "", "audio_url": r.get("audio_url")})
+                log(f"Ask: {q[:80]!r} ({time.time() - t0:.0f} s)")
+                return self._json({"answer": out.get("answer", ""), "cites": cites, "seconds": round(time.time() - t0, 1),
+                                   "lines": len(lines)})
             if p in ("/api/feedback/clip", "/api/feedback/alert"):
                 fb = monitor.feedback
                 if not fb:
@@ -1394,6 +1570,9 @@ def make_handler(monitor, config, hub, args, demo=None):
                     return self._json(out)
                 except ValueError as e:
                     return self._json({"error": str(e)}, 400)
+            if p == "/api/board/detach":
+                out = monitor.board_fix(body.get("id"), body.get("audio_url"), body.get("to") or None, body.get("by"))
+                return self._json(out or {"error": "couldn't find that line on that call"}, 200 if out else 404)
             if p == "/api/alert/dismiss":
                 a = monitor.dismiss_alert(body.get("id"), body.get("by"))
                 return self._json(a or {"error": "unknown alert"}, 200 if a else 404)
@@ -1822,12 +2001,13 @@ def main():
     monitor.calllog = CallLog(os.path.join(LOG_DIR, "our-calls.json"))
     monitor.feedback = FeedbackStore(LOG_DIR, download=monitor._download, log=log)
     monitor.geo = Geocoder(os.path.join(LOG_DIR, "geocache.json"), log=log)
+    monitor.load_board_fixes()
     if monitor.feedback.fixes:
         log(f"Learned fixes from crew corrections: {len(monitor.feedback.fixes)}")
     if not args.no_ai:
         monitor.ai = ClaudeReader(config.get, monitor.apply_ai, log, model=args.ai_model,
                                   claude_path=args.claude_path, max_per_hour=args.ai_max_per_hour,
-                                  others_getter=monitor.other_calls_for_ai)
+                                  others_getter=monitor.other_calls_for_ai, nearby_getter=monitor.nearby_for_ai)
         log(f"AI dispatch reader: {monitor.ai.status} (model {args.ai_model}, `{monitor.ai.claude or 'claude'}`)")
     monitor.start()
 
@@ -1839,6 +2019,7 @@ def main():
             dm.calllog = CallLog(os.path.join(LOG_DIR, "demo-our-calls.json"))
             dm.feedback = monitor.feedback
             dm.geo = monitor.geo
+            dm.asker = monitor.ai               # "Ask the radio" in the demo uses the live AI reader
             dm.status.update(transcriber="demo: recorded transcripts", fetcher="demo")
             dm.demo = DemoController(dm, LOG_DIR, log, live=monitor)
             dsrv = QuietHTTPServer((args.host, args.demo_port), make_handler(dm, config, demo_hub, args, demo=dm.demo))

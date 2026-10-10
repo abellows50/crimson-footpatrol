@@ -34,6 +34,13 @@ SCHEMA = {
         "summary": {"type": "string"},
         "confidence": {"type": "number"},
         "same_call_as": {"type": ["string", "null"]},
+        "status": {"type": ["string", "null"],
+                   "enum": ["dispatched", "responding", "on scene", "transporting", "at hospital", "clear", None]},
+        "transport_level": {"type": ["string", "null"], "enum": ["ALS", "BLS", None]},
+        "hospital": {"type": ["string", "null"]},
+        "outcome": {"type": ["string", "null"]},
+        "remove_lines": {"type": "array", "items": {"type": "string"}},
+        "add_lines": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["is_call", "units", "address", "complaint", "acuity", "harvard", "summary", "confidence"],
     "additionalProperties": False,
@@ -74,6 +81,14 @@ harvard_location: which (from the list below or as heard).
 addresses can name the same place ("Harvard MBTA" / "Harvard Square T station" = 1400 Mass Ave; \
 "Holyoke Center"/"Smith Center" = 1350 Mass Ave). If unsure, null.
 
+- status: where the call stands at the LAST line that belongs to it: dispatched, responding, on scene, transporting, at hospital, or clear (also for cancelled / refusal / AMA / no patient). null if unclear.
+- transport_level: "ALS" or "BLS" if the patient was transported and the radio says which ("BLS to the Mount"); NOT the dispatch level ("ALS, sign on and respond" is the dispatch). hospital: where the patient went ("Mount Auburn", "MGH" for "the General", "Cambridge Hospital", "Emerson", "Spaulding", "Lahey" for "the lady"...). outcome: "Refusal / AMA", "Cancelled", "No patient found" or null.
+- remove_lines: ids (like "L3") of the call's lines that are NOT about this call (another unit's traffic, chatter).
+- add_lines: ids (like "N5") of NEARBY radio lines that clearly ARE about this call and are missing from it.
+
+How the radio works: a unit calls ("Pro base, paramedic 9" / "Ambulance 4 to Pro") or is called ("17, go ahead"), then the SAME unit gives its report in the next 1-3 keyups, usually without repeating its name ("Transporting BLS to the Mount"). An unlabelled report belongs to whoever called in just before it on that channel; if someone else called in in between, it is theirs. Only move lines when the thread makes it clear; when unsure, leave them.
+Common garbles: MIT's ambulance "MIT 8" = "M-I-T-A", "MITA", "NYC"; Paramedic = "Primark", "Paramount", "Permanente"; Ambulance = "Annual", "Ambient".
+
 Harvard locations to recognise: {harvard}
 """
 
@@ -85,9 +100,10 @@ def _harvard_list(config):
 
 class ClaudeReader:
     def __init__(self, config_getter, on_result, log, model="haiku", claude_path=None,
-                 max_per_hour=60, debounce_s=15, timeout_s=90, others_getter=None):
+                 max_per_hour=60, debounce_s=15, timeout_s=90, others_getter=None, nearby_getter=None):
         self.config_getter, self.on_result, self.log = config_getter, on_result, log
         self.others_getter = others_getter        # inc -> list of other recent calls, for duplicate detection
+        self.nearby_getter = nearby_getter        # inc -> radio heard around this call that isn't on it
         self.model, self.max_per_hour, self.debounce_s, self.timeout_s = model, max_per_hour, debounce_s, timeout_s
         self.claude = claude_path or shutil.which("claude") or next(
             (p for p in ("/opt/homebrew/bin/claude", "/usr/local/bin/claude", os.path.expanduser("~/.claude/local/claude"),
@@ -116,9 +132,9 @@ class ClaudeReader:
         lines = [e for e in incident.get("timeline", []) if not e.get("note")]
         if not any(e.get("dispatch") for e in lines):
             return                                    # only calls that had a dispatch
-        sig = "|".join(e["text"] for e in lines[:14]) + "|m" + str(len(incident.get("merged_from") or []))
+        sig = "|".join(e["text"] for e in lines[-20:]) + "|m" + str(len(incident.get("merged_from") or []))
         with self.lock:
-            if self.last_sig.get(incident["id"]) == sig or self.runs.get(incident["id"], 0) >= 4:
+            if self.last_sig.get(incident["id"]) == sig or self.runs.get(incident["id"], 0) >= 8:
                 return
             self.pending[incident["id"]] = (time.time() + self.debounce_s, incident, sig)
 
@@ -200,11 +216,74 @@ class ClaudeReader:
             return json.loads(m.group(0)) if m else None
         return text
 
+    # ---------------------------------------------------------------- "Ask the radio"
+    ASK_SYSTEM = (
+        "You answer questions from a Harvard student EMS crew (Crimson EMS) about Cambridge, MA radio traffic "
+        "(Pro EMS ambulances, Cambridge Fire). You are given machine transcripts of the radio (often garbled: "
+        "use context, e.g. 'Fort Haverhouse' is probably Pforzheimer House) and the auto-built call board. "
+        "Answer ONLY from that data; if it isn't there, say so plainly. Never invent units, addresses or times. "
+        "Be brief and concrete: 1-3 sentences or a short list; skip side details nobody asked about. Write times in 12-hour "
+        "form (e.g. 4:59 PM) even though the data uses 24-hour HH:MM:SS. Mention when a "
+        "transcript is unclear or your reading is a guess. 'Pro N' / 'Ambulance N' / 'Paramedic N' are Pro EMS "
+        "ambulances; Engine / Ladder / Squad / Rescue are Cambridge Fire. Put the exact transcript times "
+        "(HH:MM:SS as written in the data) of the lines you relied on in cited_times. "
+        "How the radio works: a unit calls (\"Ambulance 4 to Pro base\" / \"Pro base, ambulance 4\"), Pro base answers "
+        "(\"go ahead\" / \"answering\"), then the SAME unit gives its report in the next 1-3 keyups, usually without "
+        "repeating its name. So an unlabelled report (\"We are taking one patient, BLS to the General\") belongs to "
+        "whoever called in just before it. Follow such threads across the whole window, including much later updates "
+        "about an earlier call (on scene, transporting ALS/BLS, hospital, clear, refusal/AMA). Common transcription "
+        "garbles: MIT ambulances (\"MIT 8\") come out as \"M-I-T-A\", \"MITA\", \"NYC\", \"My Pia\", \"M.I.T. A\", "
+        "\"MIT, A2\"; \"Pro\" as \"Pearl\", \"Pro's\", \"Brow\"; \"Ambulance\" as \"Annual\", \"Ambient\", "
+        "\"Williams\"; \"Paramedic\" as \"Paramount\", \"Primark\", \"Permanente\", \"Pyramid\". \"The General\" / "
+        "\"MGH\" = Mass General Hospital; \"the Mount\" = Mount Auburn Hospital; \"the Emerson\" = Emerson Hospital. If"
+        " you connect garbled lines to a unit, say it's an inference and show the line.")
+    ASK_SCHEMA = {"type": "object", "properties": {
+        "answer": {"type": "string"},
+        "cited_times": {"type": "array", "items": {"type": "string"}, "maxItems": 8}},
+        "required": ["answer", "cited_times"]}
+
+    def ask_radio(self, question, context, history=()):
+        """Free-form question about the radio. Returns {answer, cited_times}. Raises on failure."""
+        if not self.claude or self.status.startswith("off"):
+            raise RuntimeError("AI is off: " + self.status)
+        now = time.time()
+        with self.lock:
+            self.recent = [t for t in self.recent if now - t < 3600]
+            if len(self.recent) >= self.max_per_hour * 2:
+                raise RuntimeError("Too many AI requests this hour; try again in a few minutes.")
+            self.recent.append(now)
+        convo = "".join(f"Earlier question: {h.get('q', '')[:300]}\nYour answer: {h.get('a', '')[:600]}\n\n"
+                        for h in list(history)[-4:])
+        prompt = f"{context}\n\n{convo}Question: {question[:500]}"
+        out = self._run(prompt, self.ASK_SYSTEM, self.ASK_SCHEMA)
+        if isinstance(out, str):
+            out = {"answer": out, "cited_times": []}
+        return out or {"answer": "No answer.", "cited_times": []}
+
     def _ask(self, inc):
         cfg = self.config_getter()
-        lines = [e for e in inc.get("timeline", []) if not e.get("note")][:14]
-        tx = "\n".join(f"[{time.strftime('%H:%M:%S', time.localtime(e['time'] / 1000))} {e.get('talkgroup_name', '')}] {e['text']}"
-                       for e in lines)
+        lines = [e for e in inc.get("timeline", []) if not e.get("note")][-20:]
+        hm = lambda ms: time.strftime('%H:%M:%S', time.localtime(ms / 1000))
+        ids = {}
+        rows = []
+        for k, e in enumerate(lines, 1):
+            ids[f"L{k}"] = e.get("audio_url")
+            rows.append(f"L{k} [{hm(e['time'])} {e.get('talkgroup_name', '')}] {e['text']}")
+        tx = "\n".join(rows)
+        near = []
+        if self.nearby_getter:
+            try:
+                near = self.nearby_getter(inc)[:45]
+            except Exception:
+                near = []
+        if near:
+            nrows = []
+            for k, r in enumerate(near, 1):
+                ids[f"N{k}"] = r.get("audio_url")
+                nrows.append(f"N{k} [{hm(r['time'])} {r.get('talkgroup_name', '')}] {r['text']}"
+                             + (f"   (now on another call: {r['on_call']})" if r.get("on_call") else ""))
+            tx += ("\n\nNEARBY radio on the same channels (not on this call; for add_lines and to follow threads):\n"
+                   + "\n".join(nrows))
         others = []
         if self.others_getter:
             try:
@@ -227,4 +306,7 @@ class ClaudeReader:
         if not isinstance(res, dict):
             return None
         res["at"] = int(time.time() * 1000)
+        # line ids -> audio urls the board understands
+        res["remove_audio"] = [ids[x] for x in (res.get("remove_lines") or []) if str(x).startswith("L") and ids.get(x)]
+        res["add_audio"] = [ids[x] for x in (res.get("add_lines") or []) if str(x).startswith("N") and ids.get(x)]
         return res

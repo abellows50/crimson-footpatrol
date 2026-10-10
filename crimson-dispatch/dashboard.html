@@ -361,6 +361,44 @@ body.harvard-only .filters,body.harvard-only #unitStrip,body.harvard-only .board
 #mapBox{height:min(60vh,520px);border-radius:8px;border:1px solid var(--line);background:#e5e3df}
 .map-info{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:14px}
 .map-info .big{font-size:20px;font-weight:700}
+button.play.playing{background:var(--crimson);border-color:var(--crimson);color:#fff}
+#askDlg{width:min(760px,96vw)}
+#askLog{display:flex;flex-direction:column;gap:12px;max-height:55vh;overflow:auto;margin-bottom:10px}
+.ask-q{align-self:flex-end;background:var(--crimson);color:#fff;padding:8px 12px;border-radius:12px 12px 2px 12px;max-width:85%}
+.ask-a{align-self:flex-start;background:var(--panel2);border:1px solid var(--line);padding:10px 12px;border-radius:12px 12px 12px 2px;max-width:92%;white-space:pre-wrap}
+.ask-a.err{border-color:var(--amber);color:#ffd28a}
+.ask-a .meta{font-size:11px;color:var(--muted);margin-top:6px;white-space:normal}
+.ask-cite{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);white-space:normal}
+.ask-cite .tt{color:var(--muted);font-family:var(--mono);font-size:12px;white-space:nowrap}
+.ask-sugg[hidden]{display:none}
+.ask-sugg{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.ask-sugg button{font-size:12px;padding:4px 10px;color:var(--muted);background:transparent}
+.ask-form{display:flex;gap:8px}
+.ask-form input{flex:1;font-size:15px}
+.ask-thinking{color:var(--muted);font-style:italic}
+.tl .tlbtns{display:flex;gap:4px;align-items:flex-start}
+.tl .tlx{padding:0 6px;font-size:11px;line-height:20px;border:none;background:transparent;color:var(--muted)}
+.tl .tlx:hover{color:#fff;background:var(--panel2)}
+.tl .tlfix{background:rgba(240,160,32,.08)}
+.tlfix-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;font-family:inherit;color:var(--muted)}
+.tlfix-row select{width:auto;max-width:100%;font-size:12px;padding:2px 6px}
+.inc .age{font-weight:500;color:var(--muted);font-size:13px}
+.inc .where{font-family:inherit!important;font-size:14px!important;color:var(--text)}
+.wholine{font-size:13px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.uname{font-weight:700;font-family:var(--mono);font-size:12px;padding:1px 6px;border-radius:5px;border:1px solid var(--line)}
+ol.cbar{list-style:none;margin:4px 0 2px;padding:0;display:grid;grid-template-columns:1fr 1fr 1.6fr 1fr;position:relative}
+ol.cbar::before{content:"";position:absolute;left:6px;right:6px;top:6px;height:2px;background:var(--line)}
+ol.cbar li{display:flex;flex-direction:column;gap:1px;position:relative;min-width:0;padding-right:4px}
+ol.cbar .dot{width:12px;height:12px;border-radius:50%;border:2px solid #4e5968;background:var(--bg);z-index:1}
+ol.cbar li.on .dot{background:var(--green);border-color:var(--green)}
+ol.cbar li.now .dot{background:var(--crimson-2);border-color:var(--crimson-2);box-shadow:0 0 0 4px rgba(224,54,79,.25)}
+ol.cbar .cl{font-size:11px;color:var(--muted);line-height:1.2;margin-top:3px;word-break:break-word}
+ol.cbar li.on .cl{color:var(--text)}
+ol.cbar .ct{font-size:11px;font-family:var(--mono);color:var(--muted)}
+.cactions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.cactions .listen{padding:7px 12px;font-size:13px}
+.cactions .listen.playing{background:var(--crimson);border-color:var(--crimson);color:#fff}
+.inc .aisum{border-left-width:2px}
 #demoBar{max-width:1200px;margin:12px auto 0;padding:10px 14px;border:2px dashed #b48cff;border-radius:8px;background:rgba(180,140,255,.08)}
 #demoBar[hidden]{display:none}
 .db-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
@@ -399,6 +437,7 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
   <label class="allchk" title="Off: only Harvard calls are shown. On: every call on the radio, plus technical details."><input type="checkbox" id="showAll">Show non-Harvard calls</label>
   <div class="controls">
     <div class="viewtabs"><button id="tabLive" class="on">Live</button><button id="tabCalls">Our calls<span class="vbadge" id="callsBadge">0</span></button></div>
+    <button id="btnAsk" title="Ask a question about the radio traffic">Ask the radio</button>
     <button id="btnSound" class="primary" title="Browsers block sound until you click once">Turn on alarm sound</button>
     <button id="btnMute" class="ghost" title="Mute alarm on this device">Mute</button>
     <div class="more"><button id="btnMore" class="ghost">More ▾</button>
@@ -486,6 +525,21 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
 </section>
 <p class="disclaimer">Unofficial: built from public radio audio with automatic transcription. It can lag by up to a minute, miss calls or mishear words, so don't rely on it alone.</p>
 
+<dialog id="askDlg">
+  <div class="dlg-head"><h3>Ask the radio</h3><button id="askClose" class="ghost">Close</button></div>
+  <div class="dlg-body">
+    <div id="askLog"></div>
+    <div class="ask-sugg" id="askSugg">
+      <button>What's happening at Harvard right now?</button>
+      <button>Which ambulances are on calls right now?</button>
+      <button>Summarize the last hour</button>
+      <button>Any calls in the Yard or the Houses today?</button>
+    </div>
+    <form id="askForm" class="ask-form"><input id="askInput" placeholder="e.g. Is Pro 7 still on scene? What was the 4:59 call?" autocomplete="off">
+      <button class="primary" id="askBtn">Ask</button></form>
+    <p class="hint">Answers come from the last 6 hours of transcripts and the call board, which can be garbled or incomplete. Press ▶ on a quoted line to check the audio. Only radio traffic is sent to Claude, never your call notes.</p>
+  </div>
+</dialog>
 <dialog id="mapDlg">
   <div class="dlg-head"><h3>Map</h3><button id="mapClose" class="ghost">Close</button></div>
   <div class="dlg-body"><div class="map-info" id="mapInfo"></div><div id="mapBox"></div>
@@ -740,7 +794,8 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
                             talkgroup_name: c.talkgroup_name, time: c.time})});
     const j = await r.json().catch(() => ({}));
     if (!r.ok) { toast(j.error || "Couldn't save"); return; }
-    fb.clips[k] = {verdict: j.verdict, text: j.text};
+    fb.clips[k] = {verdict: j.verdict, text: j.text, audio: !!j.audio};
+    if (!j.audio) setTimeout(loadFeedback, 4000);           // the server saves the clip's audio in the background
     fbEdit = null; feedPending = false; renderFeed();
     toast(j.verdict === "right" ? "Marked right. Thanks!" : "Correction saved. It will be used to train Whisper.");
   }
@@ -762,6 +817,7 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
     const rows = state.calls.filter(c => (!all || !hiddenTgs.has(String(c.talkgroup)))
         && (!onlyText || c.text || (c.hits && c.hits.length))).slice(-150).reverse();
     $("#feed").innerHTML = rows.length ? rows.map(callRow).join("") : `<div class="empty-state">Waiting for radio traffic…</div>`;
+    if (playingBtnUrl) markPlaying(playingBtnUrl);
     $("#feedCount").textContent = state.status.calls_processed ? state.status.calls_processed + " clips" : "";
   }
 
@@ -847,13 +903,41 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
   }
 
   // audio playback (event delegation)
+  // Each ▶ shows ❚❚ while its clip plays. A clip the crew already reviewed is also saved on this computer,
+  // so if OpenMHz won't serve it the local copy plays instead (and the other way round).
+  let playingBtnUrl = null;
+  function markPlaying(url){
+    playingBtnUrl = url;
+    document.querySelectorAll("[data-audio]").forEach(x => { const on = !!url && x.dataset.audio === url; x.classList.toggle("playing", on); if (x.textContent.trim() === "▶" || x.textContent.trim() === "❚❚") x.textContent = on ? "❚❚" : "▶"; });
+  }
+  function localClipUrl(url){
+    const c = [...state.calls].reverse().find(x => x.audio_url === url);
+    const k = c ? fbKey(c) : null;
+    return k && fb.clips[k] && fb.clips[k].audio ? "/api/clipaudio?key=" + encodeURIComponent(k) : null;
+  }
+  async function playClip(url){
+    const p = $("#player");
+    const sources = [url, localClipUrl(url)].filter(Boolean);
+    for (const src of sources) {
+      try {
+        p.pause(); p.src = src; p.dataset.src = url; p.currentTime = 0;
+        await p.play();
+        markPlaying(url); return;
+      } catch (err) {
+        if (err && err.name === "NotAllowedError") { toast("Click once anywhere on the page, then press ▶ again"); return; }
+      }
+    }
+    markPlaying(null);
+    toast("Couldn't play this clip" + (sources.length > 1 ? "" : " (OpenMHz didn't send the audio)"));
+  }
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-audio]"); if (!b) return;
-    e.stopPropagation();
-    const p = $("#player");
-    if (p.dataset.src === b.dataset.audio && !p.paused) { p.pause(); return; }
-    p.src = b.dataset.audio; p.dataset.src = b.dataset.audio; p.play().catch(() => toast("Couldn't play audio clip"));
+    e.stopPropagation(); e.preventDefault();
+    const p = $("#player"), url = b.dataset.audio;
+    if (playingBtnUrl === url && !p.paused && !p.ended) { p.pause(); return; }   // click on the clip that is audibly playing = stop
+    playClip(url);
   });
+  ["pause", "ended", "error"].forEach(ev => $("#player").addEventListener(ev, () => markPlaying(null)));
 
   function toast(msg){ const t = $("#toast"); t.textContent = msg; t.style.display = "block"; clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = "none", 3000); }
 
@@ -867,34 +951,101 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
     const lbl = ST_LABEL[u.status] || u.status || "";
     return `<span class="uchip ${stCls(u.status)} ${u.inferred ? "inferred" : ""}" title="${esc(u.unit)}: ${esc(lbl)}${u.inferred ? " (inferred)" : ""} since ${fmtTime(u.since || u.last)}"><b>${esc(u.unit)}</b>${withStatus ? " · " + esc(lbl) + (u.inferred ? "?" : "") : ""}</span>`;
   }
+  const hm12 = ms => new Date(ms).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
   function incCard(i, closed){
     const what = i.complaint || (i.harvard ? "Harvard call" : "Call");
     const where = [i.address, i.place && i.place !== i.address ? i.place : null, i.town].filter(Boolean).join(" · ") || "Location unclear";
     const hv = i.harvard ? `<span class="badge hv ${i.harvard}">${i.harvard === "high" ? "HARVARD" : "Harvard?"}</span>` : "";
     const lvl = i.level ? `<span class="badge ${i.level.toLowerCase()}">${esc(i.level)}</span>` : "";
     const units = i.units.length ? i.units.map(u => unitChip(u, true)).join("") : `<span class="meta">No unit identified</span>`;
+    const others = closed ? [] : (state.board.incidents || []).filter(o => o.id !== i.id && !isFireCall(o));
     const tl = i.timeline.slice().reverse().map(e => e.note
       ? `<div><span class="tt">${fmtTime(e.time).slice(0,5)}</span><span class="note">${esc(e.text)}</span><span></span></div>`
-      : `<div><span class="tt">${fmtTime(e.time).slice(0,5)}</span><span class="${e.dispatch ? "d" : ""}">${esc(e.text)}${e.inferred ? " <span class='meta'>(inferred)</span>" : ""}</span>${e.audio_url ? `<button class="play" data-audio="${esc(e.audio_url)}">▶</button>` : "<span></span>"}</div>`).join("");
-    const status = closed ? `Closed${i.close_reason ? " · " + esc(i.close_reason) : ""}` : esc(ST_LABEL[i.status] || i.status);
+      : (tlEdit === i.id + "|" + e.audio_url
+        ? `<div class="tlfix"><span class="tt">${fmtTime(e.time).slice(0,5)}</span><span>${esc(e.text)}
+             <span class="tlfix-row">Not part of this call:
+               <select data-tlmove="${esc(i.id)}|${esc(e.audio_url)}"><option value="">Just remove it</option>${others.map(o =>
+                 `<option value="${o.id}">Move to: ${esc((o.complaint || "Call") + " · " + (o.address || o.place || "location unclear") + " · " + fmtTime(o.opened).slice(0, 5))}</option>`).join("")}</select>
+               <button class="small primary" data-tlok="${esc(i.id)}|${esc(e.audio_url)}">Save</button><button class="small" data-tlcancel>Cancel</button></span></span><span></span></div>`
+        : `<div><span class="tt">${fmtTime(e.time).slice(0,5)}</span><span class="${e.dispatch ? "d" : ""}">${esc(e.text)}${e.inferred ? " <span class='meta'>(inferred)</span>" : ""}</span><span class="tlbtns">${e.audio_url ? `<button class="play" data-audio="${esc(e.audio_url)}">▶</button><button class="tlx" data-tlx="${esc(i.id)}|${esc(e.audio_url)}" title="This radio isn't part of this call">✕</button>` : ""}</span></div>`)).join("");
+    // ---- step bar: Dispatched -> On scene -> Transport -> Clear, with the time each was first heard
+    const T = i.times || {}, order = ["dispatched", "responding", "on scene", "transporting", "at hospital", "clear"];
+    const reached = order.indexOf(closed ? "clear" : (i.status || "dispatched"));
+    const tOf = (...ks) => { for (const k of ks) if (T[k]) return hm12(T[k]); return ""; };
+    const refused = /refus|ama|cancel|no patient/i.test(i.outcome || "");
+    const tlabel = refused ? (i.outcome || "No transport") : `Transport${i.transport_level ? " " + esc(i.transport_level) : ""}${i.hospital ? " → " + esc(i.hospital) : ""}`;
+    const steps = [
+      {label: "Dispatched", t: tOf("dispatched"), on: reached >= 0},
+      {label: "On scene", t: tOf("on scene", "ems_on_scene"), on: reached >= 2},
+      {label: tlabel, t: refused ? "" : tOf("transporting", "ems_transporting", "at hospital"), on: reached >= 3 || refused, wide: true},
+      {label: "Clear", t: tOf("clear", "all_clear"), on: reached >= 5},
+    ];
+    const bar = `<ol class="cbar">${steps.map((st, k) => `<li class="${st.on ? "on" : ""} ${k === steps.filter(x => x.on).length - 1 && !closed ? "now" : ""} ${st.wide ? "wide" : ""}">
+      <span class="dot"></span><span class="cl">${st.label}</span><span class="ct">${st.t}</span></li>`).join("")}</ol>`;
+    const unitsLine = i.units.length ? i.units.map(u => `<span class="uname ${stCls(u.status)}" title="${esc(ST_LABEL[u.status] || u.status || "")}">${esc(u.unit)}</span>`).join(" ")
+      : `<span class="meta">unit not heard yet</span>`;
+    const audios = i.timeline.filter(e => e.audio_url && !e.note).map(e => e.audio_url);
+    const ago = closed ? `closed ${fmtTime(i.closed || i.last).slice(0, 5)}${i.close_reason ? " · " + esc(i.close_reason) : ""}` : `${mins(i.opened)} ago`;
     return `<div class="inc ${i.harvard ? "harvard-" + i.harvard : ""} ${closed ? "done" : ""}">
-      <div class="top"><div class="what">${esc(what)}</div>${acuBadge(i.acuity, i.acuity_why)}${hv}${lvl}${closed ? "" : `<button class="x" data-dismissinc="${i.id}" title="Not a real call? Remove it from the board">✕</button>`}</div>
+      <div class="top"><div class="what">${esc(what)}${i.age ? ` <span class="age">${esc(i.age)}</span>` : ""}</div>${acuBadge(i.acuity, i.acuity_why)}${hv}${closed ? "" : `<button class="x" data-dismissinc="${i.id}" title="Not a real call? Remove it from the board">✕</button>`}</div>
       <div class="where">${esc(where)}</div>
+      <div class="wholine">${unitsLine}<span class="meta"> · ${ago}</span></div>
       ${(i.address || i.place) ? `<div class="geo" data-geoinc="${i.id}">${geoLine(i)}</div>` : ""}
-      ${i.ai_summary ? `<div class="aisum"><b>Summary:</b> ${esc(i.ai_summary)}</div>` : ""}
+      ${bar}
+      ${i.ai_summary ? `<div class="aisum">${esc(i.ai_summary)}</div>` : ""}
       ${i.ai_not_call && !closed ? `<div class="ainot">AI: probably not a real call <button class="x" data-dismissinc="${i.id}">remove</button></div>` : ""}
-      ${(i.merged_from || []).length ? `<div class="mergenote" title="${esc(i.merged_from.map(m => m.label + " (" + m.why + ")").join("; "))}">⇄ merged ${i.merged_from.length} duplicate card${i.merged_from.length > 1 ? "s" : ""} · ${esc(i.merged_from[i.merged_from.length - 1].why)}</div>` : ""}
-      <div class="meta">${(i.acuity_why || []).length ? esc(i.acuity_why[0]) + " · " : ""}${i.age ? esc(i.age) + " · " : ""}${status} · opened ${fmtTime(i.opened).slice(0,5)} (${mins(i.opened)} ago)${i.hospital ? " · → " + esc(i.hospital) : ""}</div>
-      <div class="ulist">${units}</div>
-      ${(() => { const lc = typeof linkedCall === "function" ? linkedCall(i.id) : null;
-         return lc ? `<button class="respond linked" data-opencall="${lc.id}">✓ In our calls</button>`
-                   : `<button class="respond" data-respondinc="${i.id}">＋ We responded</button>`; })()}
-      ${!closed && (state.board.incidents || []).length > 1 ? `<select class="mergesel" data-mergeinc="${i.id}" title="Two cards for the same call? Merge them">
-        <option value="">⇄ Same call as…</option>${state.board.incidents.filter(o => o.id !== i.id).map(o =>
-          `<option value="${o.id}">${esc((o.complaint || "Call") + " · " + (o.address || o.place || "location unclear") + " · " + fmtTime(o.opened).slice(0, 5))}</option>`).join("")}</select>` : ""}
-      <details data-inctl="${i.id}" ${incOpen.has(i.id) ? "open" : ""}><summary>▸ ${i.timeline.length} transmission${i.timeline.length === 1 ? "" : "s"}</summary><div class="tl">${tl}</div></details>
+      <div class="cactions">
+        ${audios.length ? `<button class="listen" data-listen="${esc(i.id)}" title="Play every transmission of this call in order">▶ Listen${audios.length > 1 ? ` (${audios.length})` : ""}</button>` : ""}
+        ${(() => { const lc = typeof linkedCall === "function" ? linkedCall(i.id) : null;
+           return lc ? `<button class="respond linked" data-opencall="${lc.id}">✓ In our calls</button>`
+                     : `<button class="respond" data-respondinc="${i.id}">＋ We responded</button>`; })()}
+      </div>
+      <details data-inctl="${i.id}" ${incOpen.has(i.id) ? "open" : ""}><summary>▸ Radio (${audios.length}) · fix lines that don't belong</summary>
+        <div class="tl">${tl}</div>
+        ${!closed && (state.board.incidents || []).length > 1 ? `<select class="mergesel" data-mergeinc="${i.id}" title="Two cards for the same call? Merge them">
+          <option value="">⇄ This is the same call as…</option>${state.board.incidents.filter(o => o.id !== i.id && !isFireCall(o)).map(o =>
+            `<option value="${o.id}">${esc((o.complaint || "Call") + " · " + (o.address || o.place || "location unclear") + " · " + fmtTime(o.opened).slice(0, 5))}</option>`).join("")}</select>` : ""}
+        ${(i.merged_from || []).length ? `<div class="mergenote">⇄ merged ${i.merged_from.length} duplicate card${i.merged_from.length > 1 ? "s" : ""}</div>` : ""}
+      </details>
     </div>`;
   }
+  // ▶ Listen: play a call's transmissions back to back
+  let listenQ = null;
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-listen]"); if (!b) return;
+    e.stopPropagation();
+    const p = $("#player");
+    if (listenQ && listenQ.id === b.dataset.listen) { listenQ = null; p.pause(); markListen(); return; }
+    const inc = (state.board.incidents || []).concat(state.board.closed || []).find(x => x.id === b.dataset.listen);
+    if (!inc) return;
+    listenQ = {id: inc.id, urls: inc.timeline.filter(x => x.audio_url && !x.note).map(x => x.audio_url), k: 0};
+    playNextInQueue();
+  });
+  function markListen(){ document.querySelectorAll("[data-listen]").forEach(x => { const on = listenQ && listenQ.id === x.dataset.listen;
+    x.classList.toggle("playing", !!on); x.textContent = on ? `■ Stop (${listenQ.k + 1}/${listenQ.urls.length})` : x.textContent.replace(/^■ Stop.*$/, "▶ Listen"); }); }
+  async function playNextInQueue(){
+    if (!listenQ) return;
+    if (listenQ.k >= listenQ.urls.length) { listenQ = null; markListen(); return; }
+    await playClip(listenQ.urls[listenQ.k]); markListen();
+  }
+  $("#player").addEventListener("ended", () => { if (listenQ) { listenQ.k++; playNextInQueue(); } });
+  $("#player").addEventListener("error", () => { if (listenQ) { listenQ.k++; playNextInQueue(); } });
+  let tlEdit = null;                          // "incidentId|audioUrl" of the line being taken out of a call
+  document.addEventListener("click", async e => {
+    const x = e.target.closest("[data-tlx]"), ok = e.target.closest("[data-tlok]"), no = e.target.closest("[data-tlcancel]");
+    if (x) { tlEdit = x.dataset.tlx; boardPending = false; renderBoard(); return; }
+    if (no) { tlEdit = null; boardPending = false; renderBoard(); return; }
+    if (!ok) return;
+    const key = ok.dataset.tlok, [id, ...rest] = key.split("|"), audio_url = rest.join("|");
+    const sel = document.querySelector(`[data-tlmove="${CSS.escape(key)}"]`);
+    ok.disabled = true;
+    const r = await fetch("/api/board/detach", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({id, audio_url, to: sel ? sel.value : "", by: store.get("name", "")})});
+    const j = await r.json().catch(() => ({}));
+    tlEdit = null; boardPending = false;
+    if (!r.ok) { toast(j.error || "Couldn't change that call"); renderBoard(); return; }
+    toast(j.to ? "Moved to the other call. Thanks, this helps tune the call board." : "Removed from this call. Thanks, this helps tune the call board.");
+  });
   const incOpen = new Set();                 // cards whose transmission list is expanded (kept across refreshes)
   let boardPending = false;
   document.addEventListener("toggle", e => { const d = e.target.dataset && e.target.dataset.inctl; if (d) { e.target.open ? incOpen.add(d) : incOpen.delete(d); } }, true);
@@ -959,23 +1110,26 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
     setTimeout(() => mapObj && mapObj.invalidateSize(), 50);
   }
   document.addEventListener("click", e => { const b = e.target.closest("[data-mapinc]"); if (b) { e.preventDefault(); openMap(b.dataset.mapinc); } });
+  // EMS only: fire calls (alarms, odors, elevators...) never show; an actual fire shows only at Harvard
+  const isFireCall = i => i.kind === "fire" || i.kind === "fire_maybe" || (i.kind === "fire_real" && !i.harvard);
+  const boardKeep = i => !isFireCall(i) && (showAll() || i.harvard);
   function renderBoard(){
     const ae = document.activeElement;            // don't rebuild the board under an open "Same call as…" menu
-    if (ae && ae.matches && ae.matches("select.mergesel") && $("#incGrid").contains(ae)) { boardPending = true; return; }
+    if (ae && ae.matches && ae.matches("select") && $("#incGrid").contains(ae)) { boardPending = true; return; }
     boardPending = false;
     const b = state.board || {incidents: [], closed: [], units: []};
     const busy = b.units.filter(u => u.status !== "clear");
     const avail = b.units.filter(u => u.status === "clear");
-    const keep = i => showAll() || i.harvard;
-    const open = b.incidents.filter(keep).sort((a, c) => (c.harvard === "high") - (a.harvard === "high") || c.last - a.last);
+    const open = b.incidents.filter(boardKeep).sort((a, c) => (c.harvard === "high") - (a.harvard === "high") || c.last - a.last);
     const showClosed = $("#showClosed").checked;
     let html = open.map(i => incCard(i, false)).join("");
-    if (showClosed) html += b.closed.filter(keep).map(i => incCard(i, true)).join("");
+    if (showClosed) html += b.closed.filter(boardKeep).map(i => incCard(i, true)).join("");
     $("#incGrid").className = html ? "inc-grid" : "";
     $("#incGrid").innerHTML = html || (showAll()
       ? `<div class="board-empty">No active calls. ${b.closed.length ? `${b.closed.length} closed recently.` : "Dispatches show up here as they're heard."}</div>`
       : `<div class="board-empty">No Harvard calls right now.</div>`);
-    $("#boardCount").textContent = open.length ? `· ${open.length} active` : "";
+    const fires = b.incidents.filter(isFireCall).length;
+    $("#boardCount").textContent = (open.length ? `· ${open.length} active` : "") + (fires ? ` · ${fires} fire call${fires === 1 ? "" : "s"} hidden` : "");
   }
   applyMode();
   $("#showClosed").checked = store.get("showClosed", false);
@@ -1107,6 +1261,34 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
     const r = await withAdmin(() => fetch("/api/test", {method: "POST", headers: adminHeaders(), body: JSON.stringify({push: true})}));
     $("#testPushOut").textContent = r.ok ? (state.status.push ? "Sent. Check your phones." : "No push channel configured on the server.") : "Failed.";
   };
+
+  // ------------------------------------------------------------------ ask the radio
+  const askDlg = $("#askDlg"), askHist = [];
+  $("#btnAsk").onclick = () => { askDlg.showModal(); setTimeout(() => $("#askInput").focus(), 50); };
+  $("#askClose").onclick = () => askDlg.close();
+  $("#askSugg").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { $("#askInput").value = b.textContent; askNow(); } });
+  $("#askForm").onsubmit = e => { e.preventDefault(); askNow(); };
+  async function askNow(){
+    const q = $("#askInput").value.trim(); if (!q) return;
+    $("#askInput").value = ""; $("#askBtn").disabled = true; $("#askSugg").hidden = true;
+    const log = $("#askLog");
+    log.insertAdjacentHTML("beforeend", `<div class="ask-q">${esc(q)}</div><div class="ask-a ask-thinking">Reading the radio…</div>`);
+    log.scrollTop = log.scrollHeight;
+    const pending = log.lastElementChild;
+    try {
+      const r = await fetch("/api/ask", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({question: q, history: askHist})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || ("error " + r.status));
+      askHist.push({q, a: j.answer});
+      pending.className = "ask-a";
+      pending.innerHTML = esc(j.answer) +
+        (j.cites || []).map(c => `<div class="ask-cite"><span class="tt">${fmtTime(c.time)}</span><span style="flex:1">${esc(c.text)}<br><span class="meta">${esc(c.talkgroup_name || "")}</span></span>${c.audio_url ? `<button class="play" data-audio="${esc(c.audio_url)}">▶</button>` : ""}</div>`).join("") +
+        `<div class="meta">${j.lines} radio lines read · ${j.seconds} s</div>`;
+    } catch (err) {
+      pending.className = "ask-a err"; pending.textContent = String(err.message || err);
+    }
+    $("#askBtn").disabled = false; log.scrollTop = log.scrollHeight; $("#askInput").focus();
+  }
 
   // ------------------------------------------------------------------ accuracy & training
   const accDlg = $("#accDlg");
