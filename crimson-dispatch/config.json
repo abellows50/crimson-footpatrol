@@ -18,9 +18,7 @@
       "aliases": [
         "H U P D",
         "HUP D",
-        "H UPD",
-        "who PD",
-        "Harvard PD"
+        "H UPD"
       ]
     },
     {
@@ -30,16 +28,10 @@
       "aliases": [
         "private responder",
         "privately responding",
-        "private ambulance response"
-      ]
-    },
-    {
-      "term": "Harvard police",
-      "level": "high",
-      "category": "HUPD / private",
-      "aliases": [
-        "Harvard University police",
-        "Harvard University PD"
+        "private ambulance response",
+        "private call",
+        "came in privately",
+        "private for Harvard"
       ]
     },
     {
@@ -48,6 +40,9 @@
       "category": "HUPD / private",
       "aliases": [
         "Crimson"
+      ],
+      "not_before": [
+        "galleria"
       ]
     },
     {
@@ -67,7 +62,11 @@
       "level": "high",
       "category": "Yard",
       "aliases": [
-        "Canaday"
+        "Canaday",
+        "Candidate Hall"
+      ],
+      "not_heard": [
+        "canada"
       ]
     },
     {
@@ -97,7 +96,8 @@
       "level": "high",
       "category": "Yard",
       "aliases": [
-        "Holworthy"
+        "Holworthy",
+        "Hall Worthy"
       ]
     },
     {
@@ -132,7 +132,8 @@
       "term": "Mower Hall",
       "level": "high",
       "category": "Yard",
-      "aliases": []
+      "aliases": [],
+      "min_score": 0.95
     },
     {
       "term": "Pennypacker",
@@ -196,25 +197,42 @@
       "term": "Memorial Church",
       "level": "high",
       "category": "Yard",
+      "aliases": [
+        "Mem Church"
+      ]
+    },
+    {
+      "term": "Holden Chapel",
+      "level": "high",
+      "category": "Yard",
       "aliases": []
     },
     {
       "term": "University Hall",
       "level": "high",
       "category": "Yard",
-      "aliases": []
+      "aliases": [],
+      "not_after": [
+        "lesley",
+        "leslie"
+      ]
     },
     {
       "term": "Sever Hall",
       "level": "high",
       "category": "Yard",
-      "aliases": []
+      "aliases": [
+        "Saber Hall",
+        "Severhull"
+      ],
+      "min_score": 0.95
     },
     {
       "term": "Emerson Hall",
       "level": "high",
       "category": "Yard",
-      "aliases": []
+      "aliases": [],
+      "min_score": 0.95
     },
     {
       "term": "Boylston Hall",
@@ -234,19 +252,37 @@
       "term": "Adams House",
       "level": "high",
       "category": "Houses",
-      "aliases": []
+      "aliases": [
+        "Claverly Hall",
+        "Randolph Hall",
+        "Westmorly Court",
+        "Westmorly",
+        "Less Morley Hall",
+        "Apthorp House"
+      ]
     },
     {
       "term": "Cabot House",
       "level": "high",
       "category": "Houses",
-      "aliases": []
+      "aliases": [
+        "Bertram Hall",
+        "Briggs Hall",
+        "Barnard Hall",
+        "Whitman Hall"
+      ]
     },
     {
       "term": "Currier House",
       "level": "high",
       "category": "Houses",
-      "aliases": []
+      "aliases": [
+        "Carrier House",
+        "Daniels Hall",
+        "Gilbert Hall",
+        "Tuchman Hall",
+        "Bingham Hall"
+      ]
     },
     {
       "term": "Dunster House",
@@ -267,7 +303,9 @@
       "term": "Kirkland House",
       "level": "high",
       "category": "Houses",
-      "aliases": []
+      "aliases": [
+        "Hicks House"
+      ]
     },
     {
       "term": "Leverett House",
@@ -275,7 +313,8 @@
       "category": "Houses",
       "aliases": [
         "Leverett",
-        "McKinlock Hall"
+        "McKinlock Hall",
+        "Leverett Towers"
       ]
     },
     {
@@ -290,6 +329,9 @@
       "category": "Houses",
       "aliases": [
         "Mather"
+      ],
+      "not_heard": [
+        "maher"
       ]
     },
     {
@@ -301,21 +343,33 @@
         "Forzheimer House",
         "Forsheimer House",
         "Porzheimer House",
-        "56 Linnaean Street",
-        "56 Linnean Street"
+        "Holmes Hall",
+        "Moors Hall",
+        "Comstock Hall",
+        "Wolbach Hall",
+        "Jordan North",
+        "Jordan South"
       ]
     },
     {
       "term": "Quincy House",
       "level": "high",
       "category": "Houses",
-      "aliases": []
+      "aliases": [
+        "Stone Hall",
+        "New Quincy",
+        "Quincy Hall"
+      ]
     },
     {
       "term": "Winthrop House",
       "level": "high",
       "category": "Houses",
-      "aliases": []
+      "aliases": [
+        "Gore Hall",
+        "Standish Hall",
+        "Winthrop Standish"
+      ]
     },
     {
       "term": "Dudley House",
@@ -376,7 +430,9 @@
       "category": "Campus buildings",
       "aliases": [
         "HUHS",
-        "Harvard Health Services"
+        "Harvard Health Services",
+        "HHS",
+        "H2HS"
       ]
     },
     {
@@ -423,7 +479,18 @@
       "category": "Campus buildings",
       "aliases": [
         "Harvard Kennedy School",
-        "HKS"
+        "HKS",
+        "Littauer Center",
+        "Taubman Building",
+        "Belfer Center"
+      ]
+    },
+    {
+      "term": "Littauer",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Littauer Building"
       ]
     },
     {
@@ -476,6 +543,15 @@
       ]
     },
     {
+      "term": "Zero Arrow Theatre",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Zero Arrow Theater",
+        "Zero Arrow Street Theatre"
+      ]
+    },
+    {
       "term": "Radcliffe Yard",
       "level": "high",
       "category": "Campus buildings",
@@ -490,6 +566,9 @@
       "aliases": [
         "SOCH",
         "Student Organization Center"
+      ],
+      "not_heard": [
+        "hills"
       ]
     },
     {
@@ -504,6 +583,9 @@
       "category": "Campus buildings",
       "aliases": [
         "Harvard Faculty Club"
+      ],
+      "not_after": [
+        "mit"
       ]
     },
     {
@@ -519,16 +601,63 @@
       ]
     },
     {
-      "term": "Peabody Terrace",
+      "term": "Hampden Hall",
       "level": "high",
       "category": "Campus buildings",
       "aliases": []
     },
     {
+      "term": "Fairfax Hall",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": []
+    },
+    {
+      "term": "Inn at Harvard",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": []
+    },
+    {
+      "term": "Harvard Square Hotel",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": []
+    },
+    {
+      "term": "Peabody Terrace",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Peabody Karis"
+      ]
+    },
+    {
       "term": "Harvard",
       "level": "medium",
       "category": "General",
-      "aliases": []
+      "aliases": [],
+      "not_before": [
+        "street",
+        "way",
+        "avenue",
+        "bridge",
+        "vanguard",
+        "pilgrim",
+        "mbta",
+        "meta",
+        "mdta",
+        "mdk",
+        "station",
+        "coop",
+        "coupe",
+        "hospital",
+        "house",
+        "pizza"
+      ],
+      "not_after": [
+        "to"
+      ]
     },
     {
       "term": "Harvard Square",
@@ -687,6 +816,318 @@
         "Forzheimer",
         "Forsheimer"
       ]
+    },
+    {
+      "term": "Lehman Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Wadsworth House",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Johnston Gate",
+      "level": "high",
+      "category": "Yard",
+      "aliases": [
+        "Johnson Gate"
+      ]
+    },
+    {
+      "term": "Pusey Library",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Robinson Hall",
+      "level": "high",
+      "category": "Yard",
+      "aliases": []
+    },
+    {
+      "term": "Loeb House",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": []
+    },
+    {
+      "term": "William James Hall",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "William James"
+      ]
+    },
+    {
+      "term": "Holden Green",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": []
+    },
+    {
+      "term": "Gutman Library",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Longfellow Hall"
+      ]
+    },
+    {
+      "term": "Busch Hall",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Adolphus Busch Hall",
+        "CGIS",
+        "Knafel Center"
+      ]
+    },
+    {
+      "term": "Maxwell Dworkin",
+      "level": "high",
+      "category": "Campus buildings",
+      "aliases": [
+        "Pierce Hall"
+      ]
+    },
+    {
+      "term": "Porcellian Club",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Porcellian",
+        "Porcelian Club",
+        "Porcellion Club",
+        "Porsellian Club",
+        "Porcelain Club"
+      ]
+    },
+    {
+      "term": "A.D. Club",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "AD Club",
+        "A D Club"
+      ]
+    },
+    {
+      "term": "Fly Club",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Fly Club House"
+      ]
+    },
+    {
+      "term": "Spee Club",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Spree Club",
+        "Spey Club"
+      ]
+    },
+    {
+      "term": "Delphic Club",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Delphic",
+        "Delfic Club",
+        "Delphick Club"
+      ]
+    },
+    {
+      "term": "Owl Club",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Isis Club"
+      ]
+    },
+    {
+      "term": "Fox Club",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Foxes Club"
+      ]
+    },
+    {
+      "term": "Phoenix-S K Club",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Phoenix S K Club",
+        "Phoenix SK",
+        "Phoenix SK Club",
+        "Phoenix Club"
+      ]
+    },
+    {
+      "term": "Bee Club",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": []
+    },
+    {
+      "term": "Sab Club",
+      "level": "medium",
+      "category": "Student orgs",
+      "aliases": [
+        "Sabliere",
+        "Sabliere Society",
+        "Saab Club"
+      ]
+    },
+    {
+      "term": "Hasty Pudding Club",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Hasty Pudding",
+        "Hasty Pudding Institute",
+        "Institute of 1770"
+      ]
+    },
+    {
+      "term": "Farkas Hall",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Farcus Hall",
+        "Hasty Pudding Theatre",
+        "Hasty Pudding Theater",
+        "Hasty Pudding Theatricals"
+      ]
+    },
+    {
+      "term": "Signet Society",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Signet",
+        "Cygnet Society"
+      ]
+    },
+    {
+      "term": "Harvard Lampoon",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Lampoon Castle",
+        "Lampoon building",
+        "Lampoon Club",
+        "Lampoon"
+      ],
+      "min_score": 0.95
+    },
+    {
+      "term": "Harvard Crimson",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Crimson building",
+        "Crimson office",
+        "Crimson newsroom"
+      ]
+    },
+    {
+      "term": "Harvard Advocate",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Advocate building"
+      ]
+    },
+    {
+      "term": "Harvard Student Agencies",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "HSA building"
+      ]
+    },
+    {
+      "term": "Harvard Hillel",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Rosovsky Hall",
+        "Rosofsky Hall",
+        "Riesman Center",
+        "Hillel House"
+      ],
+      "not_after": [
+        "mit"
+      ]
+    },
+    {
+      "term": "Hillel",
+      "level": "medium",
+      "category": "Student orgs",
+      "aliases": [],
+      "note": "MIT has a Hillel too",
+      "not_after": [
+        "mit"
+      ]
+    },
+    {
+      "term": "Chabad House",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Harvard Chabad",
+        "Chabad at Harvard",
+        "Habad House"
+      ],
+      "not_after": [
+        "mit"
+      ]
+    },
+    {
+      "term": "Chabad",
+      "level": "medium",
+      "category": "Student orgs",
+      "aliases": [],
+      "note": "MIT has a Chabad too",
+      "not_after": [
+        "mit"
+      ]
+    },
+    {
+      "term": "Harvard Catholic Center",
+      "level": "medium",
+      "category": "Student orgs",
+      "aliases": [
+        "Catholic Center",
+        "St. Paul's Church",
+        "Saint Paul Church",
+        "St. Paul Parish",
+        "Saint Paul's Parish",
+        "St. Paul's Choir School"
+      ]
+    },
+    {
+      "term": "Sigma Chi house",
+      "level": "medium",
+      "category": "Student orgs",
+      "aliases": []
+    },
+    {
+      "term": "Weld Boathouse",
+      "level": "high",
+      "category": "Student orgs",
+      "aliases": [
+        "Weld Boat House",
+        "Harvard boathouse"
+      ]
     }
   ],
   "address_ranges": [
@@ -700,7 +1141,8 @@
       "from": 1200,
       "to": 1600,
       "level": "high",
-      "label": "Mass Ave 1200-1600 (Yard / Square)"
+      "label": "Mass Ave 1200-1600 (Yard / Square)",
+      "alone_level": "medium"
     },
     {
       "street": "Massachusetts Avenue",
@@ -724,7 +1166,8 @@
       "from": 1,
       "to": 120,
       "level": "high",
-      "label": "Mt Auburn St 1-120 (Houses / HUHS)"
+      "label": "Mt Auburn St 1-120 (Houses / HUHS)",
+      "alone_level": "medium"
     },
     {
       "street": "Memorial Drive",
@@ -734,7 +1177,8 @@
       "from": 900,
       "to": 1000,
       "level": "high",
-      "label": "Memorial Dr 900-1000 (river Houses / Peabody Terrace)"
+      "label": "Memorial Dr 900-1000 (river Houses / Peabody Terrace)",
+      "alone_level": "medium"
     },
     {
       "street": "Oxford Street",
@@ -744,7 +1188,8 @@
       "from": 1,
       "to": 60,
       "level": "high",
-      "label": "Oxford St 1-60 (Science Center / labs)"
+      "label": "Oxford St 1-60 (Science Center / labs)",
+      "alone_level": "medium"
     },
     {
       "street": "Garden Street",
@@ -754,7 +1199,8 @@
       "from": 50,
       "to": 120,
       "level": "high",
-      "label": "Garden St 50-120 (Quad)"
+      "label": "Garden St 50-120 (Quad)",
+      "alone_level": "medium"
     },
     {
       "label": "Bank St 1-100",
@@ -765,7 +1211,154 @@
       ],
       "from": 1,
       "to": 100,
-      "level": "high"
+      "level": "high",
+      "alone_level": "medium"
+    }
+  ],
+  "crew_places": [
+    {
+      "label": "1575 Cambridge Street",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [
+        "1575 Cambridge Street"
+      ],
+      "names": [],
+      "note": "added from Analyze",
+      "at": 1792366882420
+    },
+    {
+      "label": "Harvard MBTA station",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [
+        "1401 Mass Ave"
+      ],
+      "names": [
+        "Harvard MBTA",
+        "Harvard Square MBTA",
+        "MBTA station"
+      ],
+      "note": "ruled out repeatedly by the crew in Analyze"
+    },
+    {
+      "label": "Harvard Coop",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [
+        "1400 Mass Ave"
+      ],
+      "names": [
+        "Harvard Coop",
+        "Harvard Coupe"
+      ],
+      "note": "ruled out repeatedly by the crew in Analyze"
+    },
+    {
+      "label": "Youville House",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [
+        "1573 Cambridge Street"
+      ],
+      "names": [
+        "Youville",
+        "U-Ville",
+        "Uville House"
+      ],
+      "note": "ruled out repeatedly by the crew in Analyze"
+    },
+    {
+      "label": "Spaulding",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [],
+      "names": [
+        "Spaulding",
+        "Spalding"
+      ],
+      "note": "ruled out repeatedly by the crew in Analyze"
+    },
+    {
+      "label": "Cambridge Rehab",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [
+        "8 Dana Street"
+      ],
+      "names": [
+        "Cambridge Rehab"
+      ],
+      "note": "ruled out repeatedly by the crew in Analyze"
+    },
+    {
+      "label": "Neville Place",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [
+        "650 Concord Ave"
+      ],
+      "names": [
+        "Neville Place",
+        "Neville Center"
+      ],
+      "note": "ruled out repeatedly by the crew in Analyze"
+    },
+    {
+      "label": "240 Albany St (MIT)",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [
+        "240 Albany Street"
+      ],
+      "names": [],
+      "note": "ruled out repeatedly by the crew in Analyze"
+    },
+    {
+      "label": "2 Mt Auburn St (apartments)",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [
+        "2 Mount Auburn Street"
+      ],
+      "names": [],
+      "note": "ruled out repeatedly by the crew in Analyze"
+    },
+    {
+      "label": "CVS, 6 JFK St",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [
+        "6 JFK Street"
+      ],
+      "names": [
+        "CVS Pharmacy"
+      ],
+      "note": "ruled out repeatedly by the crew in Analyze"
+    },
+    {
+      "label": "Blank Street, 1380 Mass Ave",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [
+        "1380 Mass Ave"
+      ],
+      "names": [
+        "Blank Street Coffee"
+      ],
+      "note": "ruled out repeatedly by the crew in Analyze"
+    },
+    {
+      "label": "McLean Hospital",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [
+        "115 Mill Street"
+      ],
+      "names": [
+        "McLean"
+      ],
+      "note": "ruled out repeatedly by the crew in Analyze"
     }
   ]
 }

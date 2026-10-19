@@ -115,7 +115,8 @@ class ClaudeReader:
         self.runs = {}               # incident id -> number of runs
         self.last_sig = {}           # incident id -> transcript signature already analysed
         self.recent = []             # timestamps of runs (rate limit)
-        self.legacy = False          # older claude without --json-schema / --tools
+        self.legacy = False
+        self.no_fast_flags = False          # older claude without --json-schema / --tools
         self.workdir = tempfile.mkdtemp(prefix="crimson-ai-")   # empty dir: no CLAUDE.md, no project files
         self.cost = 0.0
         if self.claude:
@@ -191,20 +192,28 @@ class ClaudeReader:
             self.log("AI reader unavailable:", self.status)
             return False
 
-    def _run(self, prompt, system, schema):
+    def _run(self, prompt, system, schema, timeout=None):
         base = [self.claude, "-p", "--output-format", "json", "--model", self.model]
         full = base + ["--tools", "", "--no-session-persistence", "--system-prompt", system]
+        if not self.no_fast_flags:
+            # no extended thinking: these are quick reading tasks, and thinking made each pass 3-5x slower
+            full += ["--effort", os.environ.get("CRIMSON_AI_EFFORT", "low"), "--settings", '{"alwaysThinkingEnabled": false}']
         if schema:
             full += ["--json-schema", json.dumps(schema)]
         cmd = base + ["--append-system-prompt", system] if self.legacy else full
-        p = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=self.timeout_s,
+        p = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=timeout or self.timeout_s,
                            cwd=self.workdir, env={**os.environ, "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"})
+        if p.returncode != 0 and not self.no_fast_flags and not self.legacy \
+                and re.search(r"unknown option|unrecognized|invalid option", p.stderr, re.I):
+            self.no_fast_flags = True                  # older Claude Code without --effort: retry without it
+            return self._run(prompt, system, schema, timeout)
         if p.returncode != 0 and not self.legacy and re.search(r"unknown option|unrecognized|invalid option", p.stderr, re.I):
             self.legacy = True                         # older Claude Code: retry with the basic flags
-            return self._run(prompt, system, schema)
+            return self._run(prompt, system, schema, timeout)
         if p.returncode != 0:
             raise RuntimeError((p.stderr or p.stdout or "claude exited with an error").strip().splitlines()[-1][:300])
         d = json.loads(p.stdout)
+        self.last_meta = {k: d.get(k) for k in ("duration_ms", "duration_api_ms", "num_turns", "usage", "total_cost_usd")}
         if d.get("is_error"):
             raise RuntimeError(str(d.get("result") or d.get("subtype"))[:300])
         self.cost += float(d.get("total_cost_usd") or 0)

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Long Transmissions · Crimson Dispatch Watch</title>
+<meta name="theme-color" content="#0d1117">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d1117; --panel:#161b22; --panel2:#1f2630; --line:#2d3540; --text:#e6edf3; --muted:#8b98a8;
+  --crimson:#a51c30; --crimson-2:#ff3b55; --amber:#f0a020; --green:#3fbf7f;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 "Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:inherit}
+button,select{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer}
+button:hover,select:hover{border-color:#4a5666}
+header{position:sticky;top:0;z-index:5;background:rgba(13,17,23,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
+.brand .dot{width:12px;height:12px;border-radius:3px;background:var(--crimson);box-shadow:0 0 0 4px rgba(165,28,48,.25)}
+.controls{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted)}
+.pill{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);white-space:nowrap}
+.pill.ok{color:var(--green);border-color:rgba(63,191,127,.4)}
+.pill.warn{color:var(--amber);border-color:rgba(240,160,32,.45)}
+main{max-width:900px;margin:0 auto;padding:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.card h2{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px}
+.card h2 .sp{margin-left:auto;text-transform:none;letter-spacing:0}
+.intro{color:var(--muted);font-size:13px;margin:0 0 12px}
+.call{display:grid;grid-template-columns:64px 1fr auto;gap:10px;padding:10px 14px;border-bottom:1px solid #222a34;align-items:start}
+.call:last-child{border-bottom:none}
+.call.new{animation:fresh 2.5s ease-out}
+@keyframes fresh{from{background:rgba(106,168,255,.18)}to{background:transparent}}
+.call .t{font-family:var(--mono);color:var(--muted);font-size:12px;padding-top:2px}
+.call .tg{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.call .tg .len{color:var(--text);font-family:var(--mono);text-transform:none}
+.call .tx{font-family:var(--mono);font-size:15px;word-break:break-word}
+.call .tx.empty{color:#5c6878;font-style:italic;font-size:14px}
+.call.hit-high{background:rgba(165,28,48,.14);border-left:3px solid var(--crimson-2)}
+.call.hit-medium{background:rgba(240,160,32,.10);border-left:3px solid var(--amber)}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:5px;margin:4px 4px 0 0;background:var(--panel2);border:1px solid var(--line)}
+.tag.high{border-color:var(--crimson-2);color:#ffb3bf}
+.tag.medium{border-color:var(--amber);color:#ffc66b}
+.tag.dispatch{color:#bcd6ff}
+mark{background:rgba(255,59,85,.35);color:#fff;border-radius:3px;padding:0 2px}
+.play{padding:4px 10px;font-size:12px}
+.play.on{background:var(--crimson);border-color:var(--crimson)}
+.day{padding:6px 14px;font-size:12px;color:var(--muted);background:var(--panel2);border-bottom:1px solid var(--line)}
+.empty-state{padding:18px 14px;color:var(--muted);font-size:14px}
+@media (max-width:560px){.call{grid-template-columns:52px 1fr auto;gap:8px;padding:10px 12px}.controls{margin-left:0}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="dot"></span>Long transmissions</div>
+  <span class="pill" id="live">connecting…</span>
+  <div class="controls">
+    <label>Longer than
+      <select id="minLen">
+        <option value="2">2 s</option><option value="3" selected>3 s</option><option value="5">5 s</option>
+        <option value="8">8 s</option><option value="12">12 s</option>
+      </select></label>
+    <label><input type="checkbox" id="textOnly" checked> Hide clips with no words</label>
+    <a href="/"><button>← Dashboard</button></a>
+  </div>
+</header>
+<main>
+  <p class="intro">Every radio transmission longer than a few seconds, newest first. Long keyups are much more likely to be
+    dispatches than short acknowledgements like “copy” or “on scene”. Last 12 hours; new ones appear live.</p>
+  <section class="card">
+    <h2>Transmissions <span class="sp" id="count"></span></h2>
+    <div id="feed"><div class="empty-state">Loading…</div></div>
+  </section>
+</main>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const store = {
+    get(k, d){ try { const v = localStorage.getItem("long." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v){ try { localStorage.setItem("long." + k, JSON.stringify(v)); } catch {} },
+  };
+  let calls = [], freshIds = new Set();
+  $("#minLen").value = String(store.get("min", 3));
+  $("#textOnly").checked = store.get("textOnly", true);
+
+  const minLen = () => Number($("#minLen").value);
+  const fmtTime = ms => new Date(ms).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit", hour12: false});
+  const fmtDay = ms => new Date(ms).toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"});
+  const levelOf = hits => (hits || []).some(h => h.level === "high") ? "high" : ((hits || []).length ? "medium" : "");
+
+  function highlight(text, hits){
+    const html = esc(text), words = new Set();
+    (hits || []).forEach(h => (h.heard || "").split(" ").forEach(w => { if (w.length > 1) words.add(w); }));
+    if (!words.size) return html;
+    const re = new RegExp("\\b(" + [...words].map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\b", "gi");
+    return html.replace(re, "<mark>$1</mark>");
+  }
+
+  function row(c){
+    const lvl = levelOf(c.hits);
+    const tags = (c.hits || []).map(h => `<span class="tag ${h.level}">${esc(h.term)}</span>`).join("")
+      + (c.dispatch ? `<span class="tag dispatch">dispatch</span>` : "");
+    const txt = c.text ? highlight(c.text, c.hits)
+      : c.filtered ? `unclear audio · “${esc(c.raw_text || "")}”`
+      : c.error ? "transcription failed" : "no words recognized · press ▶ to listen";
+    return `<div class="call ${lvl ? "hit-" + lvl : ""} ${freshIds.has(c.id) ? "new" : ""}">
+      <div class="t">${fmtTime(c.time)}</div>
+      <div><div class="tg">${esc(c.talkgroup_name)} · <span class="len">${esc(c.len)} s</span></div>
+        <div class="tx ${c.text ? "" : "empty"}">${txt}</div>${tags}</div>
+      <div>${c.audio_url ? `<button class="play" data-audio="${esc(c.audio_url)}">▶</button>` : ""}</div></div>`;
+  }
+
+  function render(){
+    const textOnly = $("#textOnly").checked, min = minLen();
+    const rows = calls.filter(c => (c.len || 0) > min && (!textOnly || c.text)).slice().reverse();
+    let html = "", lastDay = "";
+    for (const c of rows) {
+      const d = fmtDay(c.time);
+      if (d !== lastDay) { html += `<div class="day">${esc(d)}</div>`; lastDay = d; }
+      html += row(c);
+    }
+    $("#feed").innerHTML = html || `<div class="empty-state">No transmissions longer than ${min} s yet.</div>`;
+    $("#count").textContent = rows.length ? `${rows.length} shown` : "";
+    if (playing) markPlaying();
+    freshIds.clear();
+  }
+
+  async function load(){
+    // Always fetch from the lowest threshold in the menu so changing it doesn't need a refetch.
+    try {
+      const r = await fetch("/api/long?min=2&hours=12");
+      const j = await r.json();
+      const known = new Set(calls.map(c => c.id));
+      const merged = new Map(j.calls.map(c => [c.id, c]));
+      for (const c of calls) if (!merged.has(c.id)) merged.set(c.id, c);   // keep live ones that arrived during the fetch
+      calls = [...merged.values()].sort((a, b) => a.time - b.time);
+      if (known.size) calls.forEach(c => { if (!known.has(c.id)) freshIds.add(c.id); });
+      render();
+    } catch (e) {
+      $("#feed").innerHTML = `<div class="empty-state">Couldn't load transmissions (${esc(e.message)}). Is the server running?</div>`;
+    }
+  }
+
+  function connect(){
+    const es = new EventSource("/events");
+    es.onopen = () => { $("#live").textContent = "live"; $("#live").className = "pill ok"; load(); };
+    es.onerror = () => { $("#live").textContent = "reconnecting…"; $("#live").className = "pill warn"; };
+    es.addEventListener("call", e => {
+      const c = JSON.parse(e.data);
+      if ((c.len || 0) <= 2 || calls.some(x => x.id === c.id)) return;
+      calls.push(c); freshIds.add(c.id);
+      if (calls.length > 800) calls.shift();
+      render();
+    });
+  }
+
+  // audio: one clip at a time; press again to stop
+  const audio = new Audio();
+  let playing = null;
+  function markPlaying(){ document.querySelectorAll(".play").forEach(b => b.classList.toggle("on", b.dataset.audio === playing)); }
+  audio.onended = audio.onerror = () => { playing = null; markPlaying(); };
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-audio]"); if (!b) return;
+    if (playing === b.dataset.audio) { audio.pause(); playing = null; }
+    else { audio.src = b.dataset.audio; audio.play().catch(() => {}); playing = b.dataset.audio; }
+    markPlaying();
+  });
+
+  $("#minLen").onchange = () => { store.set("min", minLen()); render(); };
+  $("#textOnly").onchange = () => { store.set("textOnly", $("#textOnly").checked); render(); };
+  connect();
+})();
+</script>
+</body>
+</html>

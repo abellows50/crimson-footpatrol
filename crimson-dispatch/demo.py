@@ -6,7 +6,8 @@ Demo mode: a second dashboard (default http://localhost:8081) that plays back a 
   was off) are fetched from OpenMHz and transcribed with the live Whisper first, live traffic always going
   first; those transcripts are cached in logs/demo-cache.jsonl for next time. Everything then runs through the
   CURRENT pipeline: junk filter, Harvard matcher, alarms, call board, acuity, merging, Our calls.
-* Times are shifted so the calls look like they're happening now (at 1x, 2x, 5x or 10x speed).
+* Times are shifted so the calls look like they're happening now (at 1x, 2x, 5x, 10x or 30x speed). At max
+  speed calls play back-to-back with no waiting, keeping their recorded spacing so the board still groups them.
 * Completely separate from the live monitor: its own alerts, board and call log, no phone pushes,
   nothing written to the real logs (only logs/replay-demo-*.jsonl, reset each run).
 """
@@ -49,7 +50,8 @@ class DemoTranscriber:
 
 
 class DemoController:
-    SPEEDS = (1, 2, 5, 10, 30)
+    MAX = 0                                   # "as fast as possible": no waiting between calls
+    SPEEDS = (1, 2, 5, 10, 30, MAX)
 
     def __init__(self, monitor, log_dir, log, live=None):
         self.m, self.log_dir, self.log = monitor, log_dir, log
@@ -117,6 +119,9 @@ class DemoController:
             self.log(f"Demo: OpenMHz listing failed: {type(e).__name__}: {e}")
             return []
         missing = [c for c in listed if c["_id"] not in have]
+        min_len = getattr(self.live.args, "long", None)
+        if min_len is not None:                          # long mode: short keyups are skipped on playback anyway
+            missing = [c for c in missing if c.get("len") is None or c["len"] > min_len]
         if len(missing) > MAX_MISSING:
             with self.lock:
                 self.state["note"] = f"{len(missing)} clips were missing; transcribing the first {MAX_MISSING}."
@@ -225,6 +230,14 @@ class DemoController:
         if self.stop_flag.is_set():
             return
         recs = sorted(have.values(), key=lambda r: r["time"])
+        min_len = getattr(self.m.args, "long", None)
+        if min_len is not None:                          # long mode: don't count clips playback would skip
+            n = len(recs)
+            recs = [r for r in recs if r.get("len") is None or r["len"] > min_len]
+            if n > len(recs):
+                with self.lock:
+                    self.state["note"] = ((self.state.get("note") or "") + f" Long mode: {n - len(recs)} clips of "
+                                          f"{min_len:g} s or less skipped.").strip()
         if not recs:
             with self.lock:
                 self.state.update(state="error", note=self.state.get("note") or
@@ -289,6 +302,7 @@ class DemoController:
         wall0, src0, paused_total = time.time(), recs[0]["time"], 0.0
         self._set_clock(src0, wall0, paused_total, speed)
         self._publish()
+        last_shown, max_offset = 0, None
         for i, r in enumerate(recs):
             # wait until this call's moment comes round (scaled by speed; pauses don't count)
             while True:
@@ -305,15 +319,26 @@ class DemoController:
                 with self.lock:
                     sp = self.state["speed"]
                 if sp != speed:                 # speed changed mid-run: re-anchor the clock here
-                    cur = min(r["time"], src0 + (time.time() - wall0 - paused_total) * 1000 * speed)
+                    cur = src0 if speed == self.MAX else min(r["time"], src0 + (time.time() - wall0 - paused_total) * 1000 * speed)
                     wall0, src0, paused_total, speed = time.time(), cur, 0.0, sp
                     self._set_clock(src0, wall0, paused_total, speed)
                     self._publish()
+                if speed == self.MAX:
+                    break
                 due = (r["time"] - src0) / 1000 / speed
                 if time.time() - wall0 - paused_total >= due:
                     break
                 time.sleep(min(0.25, max(0.02, due - (time.time() - wall0 - paused_total))))
-            shown = _now_ms()                   # the call "happens now"
+            if speed == self.MAX:
+                # Back-to-back: stamping every call "now" would squeeze an hour of radio into a few seconds and
+                # merge unrelated calls, so keep the recorded spacing, ending at the present.
+                if max_offset is None:
+                    max_offset = _now_ms() - recs[-1]["time"]
+                shown = max(r["time"] + max_offset, last_shown)
+            else:
+                max_offset = None
+                shown = max(_now_ms(), last_shown)  # the call "happens now"
+            last_shown = shown
             call = {"_id": f"demo-{r['id']}", "time": dt.datetime.fromtimestamp(shown / 1000, dt.timezone.utc).isoformat(),
                     "talkgroupNum": r.get("talkgroup"), "url": r.get("audio_url"), "len": r.get("len")}
             try:
@@ -324,6 +349,9 @@ class DemoController:
                 self.log(f"Demo: skipped a call ({type(e).__name__}: {e})")
             with self.lock:
                 self.state["done"], self.state["at"] = i + 1, r["time"]
+            if speed == self.MAX:               # replay clock shows the recorded time of the latest call
+                wall0, src0, paused_total = time.time(), r["time"], 0.0
+                self._set_clock(src0, wall0, paused_total, speed)
             if (i + 1) % 3 == 0 or i + 1 == len(recs):
                 self._publish()
         with self.lock:

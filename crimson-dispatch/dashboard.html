@@ -295,6 +295,14 @@ select.acusel.low{color:#b8c2ce;border-color:#5c6878}
 .aisum{font-size:13px;color:var(--text);background:rgba(255,255,255,.04);border-left:3px solid #4a5666;padding:4px 8px;border-radius:4px;margin:4px 0;line-height:1.35}
 .aisum.big{font-size:15px;margin:6px 0 10px}
 .ainot{font-size:12px;color:#ffd28a}
+.aireview{font-size:12.5px;margin:6px 0 2px;padding:6px 8px;border-radius:6px;border:1px dashed #6a7686;background:rgba(120,160,255,.06);line-height:1.4}
+.aireview .why{color:var(--muted,#9aa4b2)}
+.aireview .btns{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
+.aireview button{font-size:12px;padding:3px 10px}
+.aireview.real{border-style:solid;border-color:#3d7a52;background:rgba(80,200,120,.07)}
+.lr-row{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--line)}
+.lr-row.off{opacity:.5}
+.lr-row .hint{display:block}
 .ainot .x{border:1px solid var(--line);font-size:11px;padding:0 6px;margin-left:6px}
 .mergenote{font-size:12px;color:#a9cbff}
 .mergesel{width:auto;max-width:100%;font-size:12px;padding:3px 6px;color:var(--muted)}
@@ -443,6 +451,8 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
     <div class="more"><button id="btnMore" class="ghost">More ▾</button>
       <div class="menu" id="moreMenu" hidden>
         <button id="btnNotify">Turn on phone/desktop notifications</button>
+        <button onclick="location.href='/analyze'" title="Pro EMS dispatches and Harvard calls by hour and day of week, over days or weeks">Analyze (calls by time &amp; weekday)</button>
+        <button onclick="location.href='/long'" title="Only transmissions longer than 3 seconds: more likely to be dispatches">Long transmissions (3 s+)</button>
         <button id="btnReplay" title="Run a past time window through the matcher (no alarms, no pushes)">Replay a past hour</button>
         <button id="btnAccuracy">Accuracy &amp; training</button>
         <button id="btnSettings">Settings &amp; keywords</button>
@@ -554,6 +564,7 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
   <div class="dlg-body">
     <div class="tabs" id="tabs">
       <button data-tab="rules" class="on">Locations &amp; phrases</button>
+      <button data-tab="places">Harvard places</button>
       <button data-tab="ranges">Address ranges</button>
       <button data-tab="tgs">Talkgroups</button>
       <button data-tab="tryit">Try the matcher</button>
@@ -564,6 +575,21 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
       <p class="hint"><b>High</b> = full alarm + phone push. <b>Medium</b> = amber "possible" alert, chime only. Aliases catch common mishearings. Matching is fuzzy, so small transcription errors still match. Short terms (4 letters or fewer, e.g. HUPD) must match exactly.</p>
       <div class="row-gap"><input id="ruleSearch" placeholder="Filter…" style="max-width:240px"><button id="addRule">+ Add</button></div>
       <table><thead><tr><th style="width:24%">Term</th><th>Aliases (comma-separated)</th><th style="width:100px">Level</th><th style="width:150px">Category</th><th style="width:40px"></th></tr></thead><tbody id="rulesBody"></tbody></table>
+    </div>
+    <div data-pane="places" hidden>
+      <p class="hint">Whether an address is Harvard comes from the City of Cambridge's property records and Harvard's campus map
+        (Harvard buildings, Harvard-owned rentals, student-org buildings, and the sidewalk in front of them).
+        Use this list when they get it wrong: <b>Harvard</b> entries always alarm, <b>Possible</b> entries give an amber alert,
+        <b>Not Harvard</b> entries never alarm (unless the call says HUPD or "private response for Harvard"). Addresses like
+        <i>12 Holyoke St</i>, ranges like <i>15-31 Mill St</i>, or corners like <i>Mill St &amp; Plympton St</i>; names are how dispatch says the place.
+        You can also add entries from the Analyze page; Analyze re-scores its calls by itself after you save.</p>
+      <div class="hint" style="margin:6px 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px">
+        <b>Alarm filters</b> (live dashboard, replays and phone pushes). A filtered Harvard call still shows, as an amber "possible" card with a chime, never silently dropped.<br>
+        <label style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" id="afHuhs" style="width:auto"> No loud alarm for calls from HUHS (Harvard University Health Services)</label>
+        <label style="display:flex;gap:6px;align-items:center;margin-top:4px"><input type="checkbox" id="afNear" style="width:auto"> Loud alarm only for Harvard calls within a 10-min walk of Adams House (the Quad, Law School, Allston… become amber)</label>
+      </div>
+      <div class="row-gap"><input id="placeSearch" placeholder="Filter…" style="max-width:240px"><button id="addPlace">+ Add</button></div>
+      <table><thead><tr><th style="width:22%">Label</th><th style="width:130px">Treat as</th><th>Addresses (comma-separated)</th><th>Names (comma-separated)</th><th style="width:40px"></th></tr></thead><tbody id="placesBody"></tbody></table>
     </div>
     <div data-pane="ranges" hidden>
       <p class="hint">Matches "&lt;number&gt; &lt;street&gt;" when the number falls in range, e.g. "1350 Mass Ave".</p>
@@ -722,6 +748,7 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
     else if (st.last_poll_ok) p.push(`<span class="pill ok">● Listening</span>`);
     else p.push(`<span class="pill warn">Connecting…</span>`);
     if (age !== null) p.push(`<span class="pill ${age > 30*60e3 ? "warn" : ""}">Last radio ${ago(st.last_call_ms)}</span>`);
+    if (st.long_mode != null) p.push(`<span class="pill warn" title="Started with --long: transmissions of ${st.long_mode} s or less aren't downloaded or transcribed (${st.skipped_short || 0} skipped so far)">Long mode: &gt;${st.long_mode} s only</span>`);
     if (!showAll()) {                          // simple mode: just "is it working?"
       if (!window.CRIMSON_DEMO && String(st.transcriber).startsWith("loading")) p.push(`<span class="pill warn">Starting up…</span>`);
       if (st.queue > 10) p.push(`<span class="pill warn">Running behind</span>`);
@@ -755,9 +782,9 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
     const tgs = state.talkgroups || {};
     $("#filters").innerHTML = Object.entries(tgs).map(([k, v]) =>
       `<label><input type="checkbox" data-tg="${esc(k)}" ${hiddenTgs.has(k) ? "" : "checked"}>${esc(v)}</label>`).join("") +
-      `<label><input type="checkbox" id="onlyText" ${store.get("onlyText", true) ? "checked" : ""}>Hide empty clips</label>`;
+      `<label><input type="checkbox" id="onlyText" ${store.get("onlyText2", false) ? "checked" : ""}>Hide empty clips</label>`;
     $("#filters").querySelectorAll("input[data-tg]").forEach(i => i.onchange = () => { i.checked ? hiddenTgs.delete(i.dataset.tg) : hiddenTgs.add(i.dataset.tg); store.set("hiddenTgs", [...hiddenTgs]); renderFeed(); });
-    $("#onlyText").onchange = e => { store.set("onlyText", e.target.checked); renderFeed(); };
+    $("#onlyText").onchange = e => { store.set("onlyText2", e.target.checked); renderFeed(); };
   }
 
   // ---- crew feedback (Right / Fix) — builds the training set and the "learned fixes"
@@ -768,16 +795,17 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
   function callRow(c){
     const lvl = levelOf(c.hits), k = fbKey(c), v = fb.clips[k];
     const tags = (c.hits || []).map(h => `<span class="tag ${h.level}">${esc(h.term)}${h.from_context ? " (context)" : ""}${h.suspect ? " (unclear audio)" : ""}</span>`).join("");
-    let txt = c.text ? highlight(c.text, c.hits) : (c.filtered ? `unclear audio · “${esc(c.raw_text || "")}”` : (c.error ? "transcription failed" : "(no speech)"));
+    let txt = c.text ? highlight(c.text, c.hits) : (c.filtered ? `unclear audio · “${esc(c.raw_text || "")}”` : (c.error ? "transcription failed" : "no words recognized · press ▶ to listen, Fix to type it"));
     let heard = "";
     if (v && v.verdict === "wrong") { heard = `<div class="heard">Whisper heard: “${esc(heardText(c))}”</div>`; txt = esc(v.text); }
+    const faint = c.faint ? `<span class="autofix" title="Whisper first heard no speech here; this is its best guess at a faint or short transmission. Press ▶ to check.">faint</span>` : "";
     const fixed = (c.fixed || []).length ? `<span class="autofix" title="Auto-corrected from crew fixes. Whisper heard: “${esc(c.asr_text || "")}”">auto-fixed</span>` : "";
     const editing = fbEdit === k;
     const body = editing
       ? `<div class="fbedit"><input data-fbinput="${esc(k)}" value="${esc(v && v.verdict === "wrong" ? v.text : heardText(c))}" placeholder="Type exactly what was said">
            <button class="primary small" data-fbsave="${esc(k)}">Save</button><button class="small" data-fbcancel>Cancel</button>
            <span class="hint">Press ▶ to listen. Type exactly what was said, or leave it empty if nobody spoke.</span></div>`
-      : `<div class="tx ${c.text || (v && v.verdict === "wrong") ? "" : (c.filtered ? "empty filtered" : "empty")}">${txt}${fixed}</div>${heard}`;
+      : `<div class="tx ${c.text || (v && v.verdict === "wrong") ? "" : (c.filtered ? "empty filtered" : "empty")}">${txt}${fixed}${faint}</div>${heard}`;
     const btns = !c.audio_url ? "" : v
       ? `<button class="fbchip ${v.verdict === "right" ? "ok" : "fix"}" data-fbfix="${esc(k)}" title="Change">${v.verdict === "right" ? "✓ right" : "corrected"}</button>`
       : `<div class="row1"><button data-fbok="${esc(k)}" title="The transcript is right">✓</button><button data-fbfix="${esc(k)}" title="Correct what Whisper heard">Fix</button></div>`;
@@ -813,7 +841,7 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
   });
   function renderFeed(){
     if (fbEdit && document.querySelector("#feed [data-fbinput]")) { feedPending = true; return; }   // don't wipe a correction being typed
-    const onlyText = store.get("onlyText", true), all = showAll();
+    const onlyText = store.get("onlyText2", false), all = showAll();
     const rows = state.calls.filter(c => (!all || !hiddenTgs.has(String(c.talkgroup)))
         && (!onlyText || c.text || (c.hits && c.hits.length))).slice(-150).reverse();
     $("#feed").innerHTML = rows.length ? rows.map(callRow).join("") : `<div class="empty-state">Waiting for radio traffic…</div>`;
@@ -989,7 +1017,12 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
     return `<div class="inc ${i.harvard ? "harvard-" + i.harvard : ""} ${closed ? "done" : ""}">
       <div class="top"><div class="what">${esc(what)}${i.age ? ` <span class="age">${esc(i.age)}</span>` : ""}</div>${acuBadge(i.acuity, i.acuity_why)}${hv}${closed ? "" : `<button class="x" data-dismissinc="${i.id}" title="Not a real call? Remove it from the board">✕</button>`}</div>
       <div class="where">${esc(where)}</div>
-      <div class="wholine">${unitsLine}<span class="meta"> · ${ago}</span></div>
+      <div class="wholine">${unitsLine}<span class="meta"> · ${ago}${i.found_by_ai && i.review ? " · found by AI" : ""}</span></div>
+      ${i.found_by_ai && !i.review ? `<div class="aireview"><b>The rules missed this; the AI found it.</b>${i.ai_reason ? `<br><span class="why">Why: ${esc(i.ai_reason)}</span>` : ""}<br>
+        Is it a real call?
+        <div class="btns"><button class="small primary" data-review="${esc(i.id)}|real" title="Keep it, and teach the rules to catch calls like this">✓ Real call</button>
+        <button class="small" data-review="${esc(i.id)}|false" title="Take it off the board; the AI will avoid this mistake">✗ Not a call</button></div></div>` : ""}
+      ${i.found_by_ai && i.review === "real" && i.review_note ? `<div class="aireview real">${esc(i.review_note)}</div>` : ""}
       ${(i.address || i.place) ? `<div class="geo" data-geoinc="${i.id}">${geoLine(i)}</div>` : ""}
       ${bar}
       ${i.ai_summary ? `<div class="aisum">${esc(i.ai_summary)}</div>` : ""}
@@ -1030,6 +1063,17 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
   }
   $("#player").addEventListener("ended", () => { if (listenQ) { listenQ.k++; playNextInQueue(); } });
   $("#player").addEventListener("error", () => { if (listenQ) { listenQ.k++; playNextInQueue(); } });
+  document.addEventListener("click", async e => {
+    const b = e.target.closest("[data-review]"); if (!b) return;
+    e.stopPropagation();
+    const [id, verdict] = b.dataset.review.split("|");
+    b.closest(".btns").querySelectorAll("button").forEach(x => x.disabled = true);
+    const r = await fetch("/api/board/review", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({id, verdict, by: store.get("name", "")})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { toast(j.error || "Couldn't save that"); boardPending = false; renderBoard(); return; }
+    toast(verdict === "real" ? "Thanks! Teaching the rules to catch calls like this…" : "Removed. The AI will try not to make that mistake again.");
+  });
   let tlEdit = null;                          // "incidentId|audioUrl" of the line being taken out of a call
   document.addEventListener("click", async e => {
     const x = e.target.closest("[data-tlx]"), ok = e.target.closest("[data-tlok]"), no = e.target.closest("[data-tlcancel]");
@@ -1190,7 +1234,10 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
 
   async function loadConfig(){
     config = await (await fetch("/api/config")).json();
-    renderRules(); renderRanges(); renderTgs(); $("#prompt").value = config.whisper_prompt || "";
+    config.crew_places = config.crew_places || [];
+    config.alarm_filters = config.alarm_filters || {};
+    $("#afHuhs").checked = !!config.alarm_filters.no_huhs; $("#afNear").checked = !!config.alarm_filters.near_only;
+    renderRules(); renderPlaces(); renderRanges(); renderTgs(); $("#prompt").value = config.whisper_prompt || "";
     $("#myName").value = store.get("name", ""); $("#vol").value = store.get("vol", 0.8);
     $("#baseAddr").value = (config.base || {}).address || ""; $("#baseLabel").value = (config.base || {}).label || "";
     $("#mediumSound").checked = store.get("mediumSound", true); $("#repeatAlarm").checked = store.get("repeatAlarm", true);
@@ -1207,6 +1254,23 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
   }
   $("#ruleSearch").oninput = renderRules;
   $("#addRule").onclick = () => { config.rules.unshift({term: "", aliases: [], level: "high", category: "Custom"}); $("#ruleSearch").value = ""; renderRules(); $("#rulesBody input").focus(); };
+  function renderPlaces(){
+    const q = ($("#placeSearch").value || "").toLowerCase();
+    const list = s => (s || []).join(", "), split = v => v.split(",").map(x => x.trim()).filter(Boolean);
+    $("#placesBody").innerHTML = config.crew_places.map((p, i) => (!q || JSON.stringify(p).toLowerCase().includes(q)) ? `<tr data-i="${i}">
+      <td><input data-f="label" value="${esc(p.label || "")}"></td>
+      <td><select data-f="treat">${[["harvard", "Harvard"], ["possible", "Possible (amber)"], ["not", "Not Harvard"]].map(([v, l]) =>
+        `<option value="${v}" ${(p.treat || (p.harvard ? "harvard" : "not")) === v ? "selected" : ""}>${l}</option>`).join("")}</select></td>
+      <td><input data-f="addresses" value="${esc(list(p.addresses))}" placeholder="15 Mill St"></td>
+      <td><input data-f="names" value="${esc(list(p.names))}" placeholder="optional"></td>
+      <td><button class="play" data-del>✕</button></td></tr>` : "").join("");
+    $("#placesBody").querySelectorAll("tr").forEach(tr => { const p = config.crew_places[+tr.dataset.i];
+      tr.querySelectorAll("[data-f]").forEach(inp => inp.oninput = inp.onchange = () => { const f = inp.dataset.f;
+        p[f] = (f === "addresses" || f === "names") ? split(inp.value) : inp.value; if (f === "treat") p.harvard = inp.value === "harvard"; });
+      tr.querySelector("[data-del]").onclick = () => { config.crew_places.splice(+tr.dataset.i, 1); renderPlaces(); }; });
+  }
+  $("#placeSearch").oninput = renderPlaces;
+  $("#addPlace").onclick = () => { config.crew_places.unshift({label: "", treat: "harvard", harvard: true, addresses: [], names: []}); $("#placeSearch").value = ""; renderPlaces(); $("#placesBody input").focus(); };
   function renderRanges(){
     $("#rangesBody").innerHTML = config.address_ranges.map((r, i) => `<tr data-i="${i}">
       <td><input data-f="label" value="${esc(r.label)}"></td><td><input data-f="street" value="${esc(r.street)}"></td>
@@ -1236,6 +1300,8 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
   }
   $("#saveCfg").onclick = async () => {
     const body = {rules: config.rules.filter(r => r.term && r.term.trim()), address_ranges: config.address_ranges,
+      crew_places: config.crew_places.filter(p => (p.addresses || []).length || (p.names || []).length).map(p => ({...p, label: p.label || (p.addresses || p.names)[0]})),
+      alarm_filters: {no_huhs: $("#afHuhs").checked, near_only: $("#afNear").checked},
       talkgroups: Object.fromEntries((config._tgList || Object.entries(config.talkgroups)).filter(([k]) => /^\d+$/.test(k))), whisper_prompt: $("#prompt").value};
     const r = await withAdmin(() => fetch("/api/config", {method: "POST", headers: adminHeaders(), body: JSON.stringify(body)}));
     const j = await r.json().catch(() => ({}));
@@ -1245,7 +1311,13 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
   $("#tryBtn").onclick = async () => {
     const r = await fetch("/api/match", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text: $("#tryText").value})});
     const j = await r.json();
-    $("#tryOut").innerHTML = j.hits.length ? j.hits.map(h => `<span class="tag ${h.level}">${esc(h.term)}</span> heard as “${esc(h.heard)}” (${Math.round(h.score*100)}%)`).join("<br>") : "No match.";
+    const ex = j.explain || {};
+    const verdict = {harvard: "Harvard", not: "not Harvard", unknown: "unknown"};
+    const places = (ex.locations || []).map(l => `<div>📍 ${esc(l.why)} → <b>${verdict[l.verdict] || l.verdict}</b>${l.crew ? " (crew list)" : ""}</div>`).join("");
+    const town = ex.town ? `<div>Another town named (${esc(ex.town)}): Cambridge addresses don't apply.</div>` : "";
+    $("#tryOut").innerHTML = (j.hits.length ? j.hits.map(h => `<span class="tag ${h.level}">${esc(h.term)}</span> heard as “${esc(h.heard)}”` +
+      (h.note ? ` · ${esc(h.note)}` : "")).join("<br>") : "No alert.") + (places || town ? `<div style="margin-top:8px">${town}${places}</div>` : "") +
+      (ex.city_data === false ? `<div style="margin-top:8px">City address data missing: run <code>python3 parcels.py --update</code>.</div>` : "");
   };
   $("#saveBase").onclick = async () => {
     const r = await withAdmin(() => fetch("/api/config", {method: "POST", headers: adminHeaders(),
@@ -1294,8 +1366,29 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
   const accDlg = $("#accDlg");
   $("#accClose").onclick = () => accDlg.close();
   $("#mapClose").onclick = () => $("#mapDlg").close();
+  let learned = {rules: [], review: {}};
+  async function loadLearned(){ try { const r = await fetch("/api/learned"); if (r.ok) learned = await r.json(); } catch {} }
+  function learnedHtml(){
+    const rs = learned.rules || [], rv = learned.review || {};
+    return `<h4>Rules learned from missed calls <span class="hint">(when the AI finds a call the rules missed and you mark it <b>✓ Real call</b>)</span></h4>
+      <p class="hint">AI review: ${esc(rv.status || "off")}${rv.found ? ` · ${rv.found} missed call(s) found since the server started` : ""}.
+        A rule is only kept if it would have caught the call and opens at most a few new cards on the last two weeks of radio.</p>
+      ${rs.length ? rs.map(r => `<div class="lr-row ${r.disabled ? "off" : ""}"><span>${esc(r.text)}
+          <span class="hint">${r.example ? "from “" + esc(r.example.slice(0, 110)) + "”" : ""}${r.new_elsewhere != null ? ` · ${r.new_elsewhere} other new card(s) in past radio` : ""}</span></span>
+          <button class="small" data-lrtoggle="${esc(r.id)}|${r.disabled ? "0" : "1"}">${r.disabled ? "Turn back on" : "Undo"}</button></div>`).join("")
+        : `<p class="hint">None yet.</p>`}`;
+  }
+  document.addEventListener("click", async e => {
+    const b = e.target.closest("[data-lrtoggle]"); if (!b) return;
+    const [id, off] = b.dataset.lrtoggle.split("|");
+    b.disabled = true;
+    const r = await fetch("/api/learned/toggle", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({id, disabled: off === "1", by: store.get("name", "")})});
+    if (!r.ok) toast("Couldn't change that rule");
+    await renderAccuracy();
+  });
   async function renderAccuracy(){
-    await loadFeedback();
+    await Promise.all([loadFeedback(), loadLearned()]);
     const s = fb.stats || {}, need = 200;
     const tile = (big, small) => `<div class="acc-tile"><b>${big}</b><span>${small}</span></div>`;
     $("#accBody").innerHTML = `
@@ -1310,6 +1403,7 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
       <progress max="${need}" value="${Math.min(need, s.training_ready || 0)}" style="width:100%;accent-color:var(--crimson)"></progress>
       <h4>Learned fixes <span class="hint">(applied automatically once the same mishearing is corrected twice)</span></h4>
       ${(s.learned_fixes || []).length ? `<ul class="acc-list">${s.learned_fixes.map(([w, r]) => `<li>“${esc(w)}” → “${esc(r)}”</li>`).join("")}</ul>` : `<p class="hint">None yet.</p>`}
+      ${learnedHtml()}
       <h4>Words to add to the vocabulary hint</h4>
       ${(s.suggested_words || []).length ? `<p>${s.suggested_words.map(w => `<span class="tag">${esc(w)}</span>`).join(" ")}</p>
         <div class="row-gap"><button id="accAddWords">Add these to the vocabulary hint</button><span class="hint" id="accAddOut"></span></div>` : `<p class="hint">None yet.</p>`}
@@ -1344,7 +1438,7 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
       const label = {fetching: `Fetching calls from OpenMHz… ${rp.total || 0} found so far`,
         "waiting for Whisper": "Waiting for Whisper to finish loading…",
         transcribing: `Re-transcribing <b>past</b> audio: ${rp.done} of ${rp.total} clips${(state.status && state.status.asr_sec) ? ` · about ${Math.max(1, Math.round((rp.total - rp.done) * state.status.asr_sec * 1.3 / 60))} min left` : ""}. Live calls still go first.`,
-        done: `Done: ${rp.total} calls (${rp.transcribed} with speech, ${rp.failed} failed), ${rp.alerts.length} alert(s)`,
+        done: `Done: ${rp.total} calls (${rp.transcribed} with speech, ${rp.failed} failed${rp.skipped_short ? `, ${rp.skipped_short} short ones skipped` : ""}), ${rp.alerts.length} alert(s)`,
         cancelled: `Cancelled after ${rp.done} / ${rp.total} calls`,
         error: "Replay failed: " + esc(rp.error || "")}[rp.state] || esc(rp.state);
       st.innerHTML = `<b>${fmtDT(rp.start)} → ${fmtDT(rp.end)}</b> · ${label}` +
@@ -1769,9 +1863,10 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
     $("#demoBar").hidden = false;
     const rb = $("#btnReplay"); if (rb) rb.hidden = true;
     const toLocal = d => { const z = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; };
-    let speeds = [1, 2, 5, 10, 30], speed = store.get("demoSpeed", 5), ds = {state: "idle"};
+    let speeds = [1, 2, 5, 10, 30, 0], speed = store.get("demoSpeed", 5), ds = {state: "idle"};
+    const spLabel = x => x === 0 ? "Max" : x + "×";        // 0 = as fast as possible
     function renderSpeeds(){
-      $("#dbSpeed").innerHTML = speeds.map(x => `<button data-v="${x}" class="${x === speed ? "on" : ""}">${x}×</button>`).join("");
+      $("#dbSpeed").innerHTML = speeds.map(x => `<button data-v="${x}" class="${x === speed ? "on" : ""}"${x === 0 ? ' title="As fast as possible: no waiting between calls"' : ""}>${spLabel(x)}</button>`).join("");
     }
     function renderDemo(){
       const playing = ds.state === "playing", paused = ds.state === "paused", prep = ds.state === "preparing";
@@ -1793,7 +1888,7 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
       if (ds.state === "error") { $("#dbProg").innerHTML = `Couldn't start the demo.${note || ""}`; return; }
       $("#dbProg").innerHTML = ds.state === "idle" ? "Pick a past alarm (or any time window) and press Play. Calls missing from the logs are transcribed first. 5× speed works well for demos." :
         `${{playing: "Playing", paused: "Paused", finished: "Finished", stopped: "Stopped"}[ds.state] || ds.state}${ds.label ? " · " + esc(ds.label) : ""}` +
-        ` · ${ds.done}/${ds.total} calls${at ? " · recorded at " + at : ""} · ${ds.speed || speed}×` +
+        ` · ${ds.done}/${ds.total} calls${at ? " · recorded at " + at : ""} · ${spLabel(ds.speed ?? speed)}${(ds.speed ?? speed) === 0 ? " speed" : ""}` +
         `<progress max="100" value="${pct}"></progress>` + note;
     }
     async function post(action, body){
@@ -1847,7 +1942,7 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
       }
       const t = new Date(c.frozen != null || !live ? (c.frozen ?? c.src) : c.src + (Date.now() + skew - c.wall) * c.speed);
       $("#dcRep").textContent = fmtT(t);
-      $("#dcRepSub").textContent = fmtD(t) + " · " + (live ? `${c.speed}× speed` : {paused: "paused", finished: "finished", stopped: "stopped"}[ds.state]);
+      $("#dcRepSub").textContent = fmtD(t) + " · " + (live ? (c.speed === 0 ? "max speed" : `${c.speed}× speed`) : {paused: "paused", finished: "finished", stopped: "stopped"}[ds.state]);
     }
     setInterval(tickClocks, 200); tickClocks();
     load();

@@ -1,0 +1,378 @@
+{
+ "_about": "Hand-checked Harvard knowledge that the City of Cambridge's property records and Harvard's campus map don't capture. parcels.py --update merges it into data/cambridge-addresses.json. The crew's own list (Settings > Harvard places) still overrides everything here. Researched 2026-10-18 from the FY2026 assessor records, the city's land-use table, The Harvard Crimson, club and Harvard websites; re-check once a year when the new tax data comes out (clubs move).",
+ "student_orgs": [
+  {
+   "name": "Porcellian Club",
+   "parcels": [
+    "160-24"
+   ],
+   "level": "high",
+   "amber_addresses": [
+    "1320 Mass Ave"
+   ],
+   "note": "owner P.C. Massachusetts Avenue LLC; 1320 is the J. August shop in the same building"
+  },
+  {
+   "name": "A.D. Club",
+   "parcels": [
+    "160-46"
+   ],
+   "level": "high",
+   "note": "1 Plympton St / 1270 Mass Ave"
+  },
+  {
+   "name": "Fly Club",
+   "parcels": [
+    "161-93",
+    "161-92",
+    "161-91"
+   ],
+   "level": "high",
+   "note": "2 Holyoke Pl, 64 / 60R Mt Auburn St"
+  },
+  {
+   "name": "Spee Club",
+   "parcels": [
+    "162-62"
+   ],
+   "level": "high",
+   "note": "76 Mt Auburn St / 25 Holyoke St"
+  },
+  {
+   "name": "Delphic Club",
+   "parcels": [
+    "160-55"
+   ],
+   "level": "high",
+   "note": "9 Linden St (trustees)"
+  },
+  {
+   "name": "Owl Club",
+   "parcels": [
+    "161-5"
+   ],
+   "level": "high",
+   "note": "30 Holyoke St"
+  },
+  {
+   "name": "Fox Club",
+   "parcels": [
+    "162-4"
+   ],
+   "level": "high",
+   "note": "44-46 JFK St"
+  },
+  {
+   "name": "Phoenix-S K Club",
+   "parcels": [
+    "161-2"
+   ],
+   "level": "high",
+   "note": "72 Mt Auburn St (72 Mount Auburn Trust)"
+  },
+  {
+   "name": "Bee Club",
+   "parcels": [
+    "133-21"
+   ],
+   "level": "high",
+   "note": "12 Bow St, bought 2021"
+  },
+  {
+   "name": "Sab Club",
+   "parcels": [
+    "133-28"
+   ],
+   "level": "medium",
+   "note": "1130 Mass Ave; owner 1130 MASS AVE LLC not confirmed as the club: amber until confirmed"
+  },
+  {
+   "name": "Hasty Pudding Club",
+   "parcels": [
+    "162-67"
+   ],
+   "level": "high",
+   "amber_addresses": [
+    "82 Mt Auburn St"
+   ],
+   "note": "45 Dunster St (leased from the Fly since 2018); 82 Mt Auburn St is shop space"
+  },
+  {
+   "name": "Signet Society",
+   "parcels": [
+    "162-10"
+   ],
+   "level": "high",
+   "note": "46-48 Dunster St (Signet Associates)"
+  },
+  {
+   "name": "Harvard Lampoon",
+   "parcels": [
+    "160-61"
+   ],
+   "level": "high",
+   "note": "44 Bow St / 57-59 Mt Auburn St (trustees)"
+  },
+  {
+   "name": "The Harvard Crimson",
+   "parcels": [
+    "133-9"
+   ],
+   "level": "high",
+   "note": "12-14 Plympton St (Harvard Crimson Trust)"
+  },
+  {
+   "name": "Harvard Student Agencies",
+   "parcels": [
+    "160-77"
+   ],
+   "level": "high",
+   "note": "67-71 Mt Auburn St"
+  },
+  {
+   "name": "Chabad House at Harvard",
+   "parcels": [
+    "132-63"
+   ],
+   "level": "high",
+   "note": "38-40 Banks St (Lubavitch of Cambridge)"
+  },
+  {
+   "name": "Chabad Center for Jewish Life (construction site)",
+   "parcels": [
+    "132-62",
+    "132-61"
+   ],
+   "level": "medium",
+   "note": "48-56 Banks St; demolition began July 2026: make it high when it opens"
+  },
+  {
+   "name": "Harvard Catholic Center (St. Paul Parish)",
+   "parcels": [
+    "133-61",
+    "133-50"
+   ],
+   "level": "medium",
+   "note": "29 Mt Auburn St / 20-24 Arrow St: a parish church and choir school too, so amber"
+  },
+  {
+   "name": "Sigma Chi house",
+   "parcels": [
+    "133-29"
+   ],
+   "level": "medium",
+   "note": "1124 Mass Ave; foundation-owned since 2021, may be empty: amber"
+  },
+  {
+   "name": "14 Story St (Harvard-leased offices)",
+   "parcels": [
+    "168-25"
+   ],
+   "level": "high",
+   "note": "the whole building is leased to Harvard; tax bills go to Harvard College"
+  }
+ ],
+ "harvard_parcels": {
+  "219-11": "15 Hawthorn St (15 HAWTHORN STREET LLC, care of President & Fellows of Harvard College)"
+ },
+ "address_overrides": [
+  {
+   "address": "971 Memorial Dr",
+   "level": "high",
+   "name": "Weld Boathouse",
+   "note": "the city's address point for 971 Memorial Dr sits on the state park lot (164-7); the boathouse is Harvard lot 274-1H"
+  },
+  {
+   "address": "10 Cowperthwaite St",
+   "level": "high",
+   "name": "Mather House",
+   "note": "Mather House's own address; the city's address list has no 10 Cowperthwaite St"
+  },
+  {
+   "address": "0 Arrow St",
+   "level": "high",
+   "name": "Zero Arrow Street Theatre",
+   "note": "Harvard-owned theatre (A.R.T.); its address is 0 Arrow St"
+  },
+  {
+   "address": "5-7 Garden St",
+   "level": "high",
+   "name": "Radcliffe Yard",
+   "note": "the Radcliffe Yard side: every official Garden St number on this block (1-11) is on that side; the Common has none"
+  }
+ ],
+ "name_rules": [
+  {
+   "term": "Porcellian Club",
+   "aliases": [
+    "Porcellian",
+    "Porcelian Club",
+    "Porcellion Club",
+    "Porsellian Club",
+    "Porcelain Club"
+   ]
+  },
+  {
+   "term": "A.D. Club",
+   "aliases": [
+    "AD Club",
+    "A D Club"
+   ]
+  },
+  {
+   "term": "Fly Club",
+   "aliases": [
+    "Fly Club House"
+   ]
+  },
+  {
+   "term": "Spee Club",
+   "aliases": [
+    "Spree Club",
+    "Spey Club"
+   ]
+  },
+  {
+   "term": "Delphic Club",
+   "aliases": [
+    "Delphic",
+    "Delfic Club",
+    "Delphick Club"
+   ]
+  },
+  {
+   "term": "Owl Club",
+   "aliases": [
+    "Owls Club",
+    "Isis Club"
+   ]
+  },
+  {
+   "term": "Fox Club",
+   "aliases": [
+    "Foxes Club"
+   ]
+  },
+  {
+   "term": "Phoenix-S K Club",
+   "aliases": [
+    "Phoenix S K Club",
+    "Phoenix SK",
+    "Phoenix SK Club",
+    "Phoenix Club"
+   ]
+  },
+  {
+   "term": "Bee Club",
+   "aliases": []
+  },
+  {
+   "term": "Sab Club",
+   "level": "medium",
+   "aliases": [
+    "Sabliere",
+    "Sabliere Society",
+    "Saab Club"
+   ]
+  },
+  {
+   "term": "Hasty Pudding Club",
+   "aliases": [
+    "Hasty Pudding",
+    "Hasty Pudding Institute",
+    "Institute of 1770"
+   ]
+  },
+  {
+   "term": "Farkas Hall",
+   "aliases": [
+    "Farcus Hall",
+    "Hasty Pudding Theatre",
+    "Hasty Pudding Theater",
+    "Hasty Pudding Theatricals"
+   ]
+  },
+  {
+   "term": "Signet Society",
+   "aliases": [
+    "Signet",
+    "Cygnet Society"
+   ]
+  },
+  {
+   "term": "Harvard Lampoon",
+   "aliases": [
+    "Lampoon Castle",
+    "Lampoon building",
+    "Lampoon Club"
+   ]
+  },
+  {
+   "term": "Harvard Crimson",
+   "aliases": [
+    "Crimson building",
+    "Crimson office",
+    "Crimson newsroom"
+   ]
+  },
+  {
+   "term": "Harvard Advocate",
+   "aliases": [
+    "Advocate building"
+   ]
+  },
+  {
+   "term": "Harvard Student Agencies",
+   "aliases": [
+    "HSA building"
+   ]
+  },
+  {
+   "term": "Harvard Hillel",
+   "aliases": [
+    "Rosovsky Hall",
+    "Rosofsky Hall",
+    "Riesman Center",
+    "Hillel House"
+   ]
+  },
+  {
+   "term": "Chabad House",
+   "aliases": [
+    "Harvard Chabad",
+    "Chabad at Harvard",
+    "Habad House"
+   ]
+  },
+  {
+   "term": "Harvard Catholic Center",
+   "level": "medium",
+   "aliases": [
+    "Catholic Center",
+    "St. Paul's Church",
+    "Saint Paul Church",
+    "St. Paul Parish",
+    "Saint Paul's Parish",
+    "St. Paul's Choir School"
+   ]
+  },
+  {
+   "term": "Harvard Faculty Club",
+   "aliases": [
+    "Faculty Club"
+   ]
+  },
+  {
+   "term": "Sigma Chi house",
+   "level": "medium",
+   "aliases": []
+  },
+  {
+   "term": "Weld Boathouse",
+   "aliases": [
+    "Weld Boat House",
+    "Harvard boathouse"
+   ]
+  }
+ ]
+}

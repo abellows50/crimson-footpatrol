@@ -60,25 +60,35 @@ HOSPITALS = {
 }
 COMPLAINTS = [
     # (regex, label, als?)  first match wins, so put specific ones first
-    (r"motor vehicle (accident|crash|collision|access)|\bmva\b|\bmvc\b|\bmba\b|bicycl\w* (a )?struck|bike (a )?struck|car accident|vehicle accident|pedestrian struck|ped struck|struck by (a )?(car|vehicle)|bicycl\w* (accident|crash)|bike (accident|crash)", "Motor vehicle accident", False),
+    (r"motor vehicle (accident|crash|collision|access)|\bmva\b|\bmvc\b|\bmba\b|bicycl\w* (a )?struck|bike (a )?struck|car accident|vehicle accident|pedestrian struck|ped struck|(struck|hit) by (a |an )?(car|vehicle|motor vehicle|truck|bus|bike|bicycle|cyclist|bicyclist|scooter|e-?bike|moped)|(person|pedestrian|ped|cyclist|bicyclist|biker) (was )?(struck|hit)\b|bicycl\w* (accident|crash)|bike (accident|crash)", "Motor vehicle accident", False),
     (r"cardiac arrest|\bcpr\b|not breathing|\bdoa\b", "Cardiac arrest", True),
+    (r"heart problem|cardiac (problem|issue|history|symptoms)|palpitation\w*|irregular heart|rapid heart", "Heart problem", True),
     (r"chest pain|chest pains|chest pressure", "Chest pain", True),
     (r"difficulty breathing|trouble breathing|short(ness)? of breath|\bsob\b|respiratory|physical breathing|asthma", "Difficulty breathing", True),
-    (r"unconscious|unresponsive|passed out|syncop\w*|fainted|loss of consciousness", "Unconscious / syncope", True),
-    (r"altered mental|\bams\b|altered (status|mental)|confus\w+", "Altered mental status", True),
+    (r"unconscious|unresponsive|passed out|syncop\w*|fainted|loss of consciousness|\bsingapore\b", "Unconscious / syncope", True),
+    (r"altered mental|\bams\b|altered (status|mental|level|dental)|confus\w+", "Altered mental status", True),
+    (r"\b(man|woman|person|party|male|female) down\b", "Man down", False),
     (r"seizure|seizing", "Seizure", True),
     (r"stroke|\bcva\b|facial droop|slurred speech", "Stroke", True),
     (r"overdose|\bod\b|narcan|opioid", "Overdose", True),
     (r"allergic reaction|anaphyla\w*|epi ?pen", "Allergic reaction", True),
     (r"diabet\w*|blood sugar|hypoglyc\w*", "Diabetic", True),
-    (r"intox\w*|\betoh\b|e\.?t\.?o\.?h|\beth\b|\be\.t\.h\b|alcohol|drunk|intoxicated", "Intoxication (ETOH)", False),
+    (r"intox\w*|\betoh\b|e\.?t\.?o\.?h|\beth\b|\be\.t\.h\b|alcohol|drunk|intoxicated|\b(atoh|e2h|etuh|ecoh|etoh's)\b",
+     "Intoxication (ETOH)", False),
     (r"head strike|head straight|head injury|hit (his|her|their) head", "Fall / head strike", False),
-    (r"\bfall\b|\bfell\b|\bfallen\b|lift assist|farrah? paul|fair a paul|for a paul|\ba fault\b", "Fall", False),
+    (r"\bfall\b|\bfell\b|\bfallen\b|lift assist|farrah? paul|fair a paul|for a paul|\ba fault\b|\bpro fault\b|"
+     r"\b(for|with|as) a (frog|ball|follow|false)\b|\b(male|female)[, ]+(false|fault|follow)\b|can'?t get up|cannot get up",
+     "Fall", False),
     (r"assault|stab\w*|gunshot|shot\b|\bfight\b", "Assault / trauma", False),
+    (r"injur\w*|dislocat\w*|fractur\w*|\bbroken\b|sprain\w*|\bacl\b|twisted (ankle|knee)|\bburns?\b", "Injury", False),
     (r"abdominal pain|stomach pain", "Abdominal pain", False),
-    (r"psych\w*|suicid\w*|section 12|emotional", "Psych", False),
-    (r"bleeding|laceration|hemorrhag\w*", "Bleeding / laceration", False),
-    (r"dizz\w*|weakness|general illness|sick person|not feeling well|vomit\w*|nausea", "Sick / dizziness", False),
+    (r"psych\w*|suicid\w*|section 12|emotional|\bfor (a|the) (site|section|psych)\b", "Psych", False),
+    (r"bleeding|laceration|hemorrhag\w*|\bcuts?\b|nosebleed", "Bleeding / laceration", False),
+    (r"cold exposure|hypotherm\w*|heat (exhaustion|stroke)|frostbite|exposure to (the )?cold", "Cold / heat exposure", False),
+    (r"dizz\w*|weakness|general illness|sick person|not feeling well|vomit\w*|nausea|sickness|busyness|"
+     r"\b(six|6|6th|safe|state|spec|sec|sit|set|good|sick)[ -]?person\b|\bsick\b", "Sick / dizziness", False),
+    (r"wellness check|well-?being check|welfare check|lifeline|life alert|medical alert|no response", "Wellness check / lifeline", False),
+    (r"\bnot alert\b", "Altered mental status", True),              # only when nothing more specific was said
     (r"\bpain\b", "Pain", False),
     (r"medical alarm|medical assist|medical call|\bmedical\b", "Medical", False),
     (r"fire alarm|for the alarm|alarm sounding|box alarm|\balarm\b|odor of (smoke|gas)|smoke|carbon monoxide|\bco detector|gas leak|\bfire\b", "Fire alarm / fire", False),
@@ -212,6 +222,101 @@ _ADDR_RE = re.compile(
     re.I)
 
 
+# Cambridge / Somerville / nearby streets often heard without "Street"/"Avenue" ("526 Beacons", "45 Prospect")
+BARE_STREETS = {
+    "Beacon": "Street", "Prospect": "Street", "Hampshire": "Street", "Inman": "Street",
+    "Bow": "Street", "Dunster": "Street", "Plympton": "Street",
+    "Linden": "Street", "Holyoke": "Street", "Quincy": "Street", "Oxford": "Street", "Kirkland": "Street",
+    "Brattle": "Street", "Huron": "Avenue",
+    "Putnam": "Avenue", "Western": "Avenue", "Magazine": "Street", "Pleasant": "Street",
+    "Columbia": "Street", "Windsor": "Street", "Portland": "Street", "Binney": "Street", "Broadway": "",
+    "Hancock": "Street", "Ellery": "Street", "Trowbridge": "Street", "Dana": "Street", "Ware": "Street",
+    "Banks": "Street", "Bank": "Street", "Washington": "Street",
+    "Franklin": "Street", "Pearl": "Street", "Brookline": "Street", "Sidney": "Street",
+    "Albany": "Street", "Vassar": "Street", "Ames": "Street", "Amherst": "Street", "Memorial": "Drive",
+    "Fresh Pond": "Parkway", "Rindge": "Avenue", "Walden": "Street", "Sherman": "Street", "Hurley": "Street",
+    "Thorndike": "Street", "Otis": "Street", "Charles": "Street", "Webster": "Avenue",
+    "Elm": "Street", "Norfolk": "Street", "Lee": "Street", "Plymouth": "Street", "Arrow": "Street",
+    "Story": "Street", "Mifflin": "Place", "Everett": "Street", "Jarvis": "Street", "Sacramento": "Street",
+    "Wendell": "Street", "Shepard": "Street", "Chauncy": "Street", "Hilliard": "Street", "Mass": "Ave",
+}
+BARE_STREETS = {k: v for k, v in BARE_STREETS.items() if v}
+
+
+# ------------------------------------------------------------------------------------------ learned rules
+# Rules learned from calls the AI found and the crew confirmed as real (logs/learned-rules.json, see learn.py).
+# They are plain data, never code: phrase rewrites, complaint phrases, dispatch phrases, street and place names.
+RULE_TYPES = ("rewrite", "complaint", "dispatch", "street", "place")
+_LEARNED = {"rewrite": [], "complaint": [], "dispatch": None, "street": {}, "street_re": None, "place": None}
+
+
+def phrase_re(phrase):
+    """'struck by a bicycle' -> a case-insensitive whole-word regex that tolerates commas / dashes between words."""
+    words = re.findall(r"[A-Za-z0-9']+", phrase or "")
+    if not words:
+        return None
+    return r"\b" + r"[\s,.-]+".join(re.escape(w) for w in words) + r"\b"
+
+
+def compile_learned(rules):
+    """rules: [{type, phrase / heard / means / label / name / suffix, ...}] -> the lookup tables the parser uses."""
+    out = {"rewrite": [], "complaint": [], "dispatch": None, "street": {}, "street_re": None, "place": None}
+    disp, places = [], []
+    for r in rules or []:
+        if r.get("disabled"):
+            continue
+        t = r.get("type")
+        if t == "rewrite" and phrase_re(r.get("heard")) and r.get("means"):
+            out["rewrite"].append((re.compile(phrase_re(r["heard"]), re.I), str(r["means"])))
+        elif t == "complaint" and phrase_re(r.get("phrase")) and r.get("label"):
+            out["complaint"].append((re.compile(phrase_re(r["phrase"]), re.I), str(r["label"])[:40]))
+        elif t == "dispatch" and phrase_re(r.get("phrase")):
+            disp.append(phrase_re(r["phrase"]))
+        elif t == "street" and r.get("name"):
+            out["street"][str(r["name"]).strip().title()] = (r.get("suffix") or "Street").strip().title()
+        elif t == "place" and phrase_re(r.get("name")):
+            places.append((phrase_re(r["name"]), str(r["name"]).strip()))
+    if disp:
+        out["dispatch"] = re.compile("|".join(disp), re.I)
+    if out["street"]:
+        out["street_re"] = re.compile(r"\b(\d{1,4})[,\s]+(%s)\b" % "|".join(re.escape(k) for k in out["street"]), re.I)
+    if places:
+        out["place"] = [(re.compile(rx, re.I), name) for rx, name in places]
+    return out
+
+
+_TRY = threading.local()
+
+
+class _Learned:
+    """The learned rules in force: module-wide, except inside trying_rules() (the learner testing candidates
+    in its own thread must not change how the live board parses)."""
+    def __getitem__(self, k):
+        return (getattr(_TRY, "rules", None) or _ACTIVE)[k]
+
+
+_ACTIVE = _LEARNED
+_LEARNED = _Learned()
+
+
+def set_learned(rules):
+    """Install learned rules for every Board (module-wide, like the built-in patterns)."""
+    global _ACTIVE
+    _ACTIVE = compile_learned(rules)
+
+
+class trying_rules:
+    """with trying_rules(rules): ... parses in this thread with these rules instead of the installed ones."""
+    def __init__(self, rules):
+        self.compiled = compile_learned(rules)
+
+    def __enter__(self):
+        _TRY.rules = self.compiled
+
+    def __exit__(self, *a):
+        _TRY.rules = None
+
+
 def extract_address(text):
     """'425, Mass Ave.' -> ('425 Mass Ave', '425 mass ave'); '4-1 Jackson Street' -> 41 Jackson Street."""
     best = None
@@ -247,17 +352,35 @@ def extract_address(text):
         if best is None:
             best = (label, key)
     if best is None:
+        # suffix dropped by the transcript: "526 Beacons" = 526 Beacon Street (known Cambridge-area streets only)
+        m = re.search(r"\b(\d{1,4})[,\s]+(%s)s?\b(?!\s+(?:%s)\b)" % ("|".join(BARE_STREETS), STREET_SUFFIX), text, re.I)
+        if m and not re.search(r"(engine|squad|ladder|truck|rescue|pro|paramedic|medic|channel|unit|room|ambulance)\W*$",
+                               text[max(0, m.start() - 12):m.start()].lower()):
+            name = next(k for k in BARE_STREETS if k.lower() == m.group(2).lower())
+            suf = BARE_STREETS[name]
+            best = (f"{int(m.group(1))} {name} {suf}", f"{int(m.group(1))} {name.lower()} {suf.lower()}")
+    if best is None:
         # streets without a suffix word: "373, Broadway"
         m = re.search(r"\b(\d{1,4})[,\s]+(Broadway|Concord Turnpike|Fresh Pond|Alewife Brook)\b", text)
         if m and not re.search(r"(engine|squad|ladder|truck|rescue|pro|paramedic|medic|channel|unit|room|ambulance)\W*$",
                                text[max(0, m.start() - 12):m.start()].lower()):
             best = (f"{int(m.group(1))} {m.group(2)}", f"{int(m.group(1))} {m.group(2).lower()}")
+    if best is None and _LEARNED["street_re"]:
+        m = _LEARNED["street_re"].search(text)
+        if m and not re.search(r"(engine|squad|ladder|truck|rescue|pro|paramedic|medic|channel|unit|room|ambulance)\W*$",
+                               text[max(0, m.start() - 12):m.start()].lower()):
+            name = next(k for k in _LEARNED["street"] if k.lower() == m.group(2).lower())
+            suf = _LEARNED["street"][name]
+            best = (f"{int(m.group(1))} {name} {suf}", f"{int(m.group(1))} {name.lower()} {suf.lower()}")
     return best
 
 
 def extract_place(text):
     m = re.search(r"((?:[A-Z][A-Za-z'.]*\s+){1,3}(?:%s))\b" % PLACE_SUFFIX, text)   # "Central Square T Station"
     if not m:
+        for rx, name in _LEARNED["place"] or ():
+            if rx.search(text):
+                return name
         return None
     words = [w for w in m.group(1).split() if w.lower() not in STOP]
     if len(words) < 2:
@@ -279,6 +402,9 @@ def extract_complaint(text):
     for rx, label, als in COMPLAINTS:
         if re.search(rx, low):
             return label, als
+    for rx, label in _LEARNED["complaint"]:
+        if rx.search(low):
+            return label, next((a for _, l, a in COMPLAINTS if l == label), False)
     return None, False
 
 
@@ -325,10 +451,16 @@ def extract_age(text):
 
 
 # Pro dispatch telling the crew the fire department is also going: "Call on the fire", "call on the Arlington
-# Fire", "all on with fire", "Call Ambulance, fire". Not a fire call, and a sign of a dispatch.
+# Fire", "all on with fire", "Call Ambulance, fire", "gonna be calling fire for this one", "we'll start the fire".
+# Not a fire call, and a sign of a dispatch.
 FIRE_NOTIFY_RE = re.compile(
     r"\b(?:call(?:ed|ing)?|all)\s+(?:on|in|out)(?:\s+with)?\s+(?:the\s+)?(?:[A-Z]\w+\s+)?fire(?:\s+department)?\b|"
-    r"\bcall ambulance,?\s*fire\b|\bon with (?:the )?fire\b", re.I)
+    r"\bcall ambulance,?\s*fire\b|\bon with (?:the )?fire\b|"
+    r"\bcall(?:ing)?\s+(?:the\s+)?fire(?!\s*alarm)(?:\s+department)?(?:\s+(?:for|on)\s+(?:this|that)(?:\s+one)?)?\b|"
+    r"\bfire\s+for\s+(?:this|that)\s+one\b|"
+    r"\b(?:we'?ll|will|gonna|going to|i'?ll|we'?re going to)\s+start\s+(?:the\s+)?fire\b", re.I)
+# Pro's own dispatch of an ambulance: Pro ambulances aren't sent to plain fire alarms
+SIGN_ON_RE = re.compile(r"\bsign(?:ed)?\s+(?:on|in)\s+(?:and\s+)?respond", re.I)
 _CALLSIGN_RE = re.compile(
     r"(\bto\s+|^\W*|,\s*)fire\s*alarm\b(?!\s+(?:sounding|activation|going off|at\b))|"
     r"\bfire\s*alarm\s*(?:,\s*)?(?:answering|go ahead|copies|copy|received)\b", re.I)
@@ -339,7 +471,14 @@ def normalize(text):
     # "truck 3300 Franklin Street" = "truck 3, 300 Franklin Street" (Cambridge units are single digits)
     text = re.sub(r"\b(engine|truck|ladder|squad|rescue)\s+(\d)(\d{2,4})(?=[\s,]+[A-Z])", r"\1 \2, \3", text, flags=re.I)
     # MIT's ambulance "MIT 8" is often heard as "M-I-T-A" / "MITA" / "M.I.T. A" ("eight" ~ "A")
+    # the first syllable of a keyup gets clipped or merged: "(Car) responding to ..." heard as "corresponding to"
+    text = re.sub(r"\bcor?-?responding (to|into)\b", r"responding \1", text, flags=re.I)
     text = re.sub(r"\bM[\s.-]*I[\s.-]*T[\s.,-]*A\b|\bMITA\b", "MIT 8", text)
+    # "Rindge Ave" said fast comes out as one word: "Rinjav", "Rinjave", "Ringe Ave", "Rinch Avenue"
+    text = re.sub(r"\bRin(?:dge|dg|ge|j|ch)e?[\s-]*av(?:e|enue)?\b", "Rindge Ave", text, flags=re.I)
+    text = re.sub(r"\bMass[\s-]?av(?:e)?\b(?!enue)", "Mass Ave", text, flags=re.I)
+    for rx, means in _LEARNED["rewrite"]:
+        text = rx.sub(means, text)
     return text
 
 
@@ -368,10 +507,27 @@ def parse(text, talkgroup_name=""):
         "age": extract_age(text),
         "status": extract_status(text),
         "hospital": hospital,
-        "dispatch": bool(DISPATCH_RE.search(no_callsign)),
+        "dispatch": bool(DISPATCH_RE.search(no_callsign) or (_LEARNED["dispatch"] and _LEARNED["dispatch"].search(no_callsign))),
         "fire_notify": bool(FIRE_NOTIFY_RE.search(text)),
         "weak_dispatch": weak,
     }
+
+
+_UNIT_START = re.compile(r"(?:^|(?<=[.!?;])\s+)(?=(?:paramedic|medic|ambulance|pro|mit|engine|squad|ladder|rescue)\s*\d+\b"
+                         r"|(?:\d{1,2}),\s)", re.I)
+
+
+def split_compound(text, talkgroup_name=""):
+    """['clears the last call', 'gives the next one'] when one keyup does both, else [text]."""
+    cuts = [m.start() for m in _UNIT_START.finditer(text) if m.start() > 0]
+    for c in cuts:
+        a, b = text[:c].strip(), text[c:].strip()
+        pa, pb = parse(a, talkgroup_name), parse(b, talkgroup_name)
+        if pa["status"] in ("clear", "at hospital") and not (pa["address"] or pa["place"]) \
+                and (pb["address"] or pb["place"]) and (pb["complaint"] or pb["dispatch"] or pb["weak_dispatch"]
+                                                       or pb["fire_notify"] or re.search(r"\btake\b", b, re.I)):
+            return [a, b]
+    return [text]
 
 
 # ------------------------------------------------------------------------------------------ the board
@@ -388,6 +544,33 @@ REAL_FIRE_RE = re.compile(
     r"\bheavy smoke\b|\bsecond alarm\b|\b2nd alarm\b|\bthird alarm\b|\b3rd alarm\b|\bentrapment\b", re.I)
 
 
+def informative(text, talkgroup_name=""):
+    """Does this transmission tell us anything about a call (vs. a call-in, 'go ahead', chatter)?"""
+    p = parse(text or "", talkgroup_name)
+    return bool(p["status"] or p["hospital"] or p["address"] or p["place"] or p["complaint"] or p["dispatch"]
+                or extract_transport_level(text or "") or re.search(r"\b(AMA|refus\w*|cancel\w*)\b", text or "", re.I))
+
+
+def norm_outcome(o):
+    """Free text from the AI -> one of a few outcome labels (or None)."""
+    o = str(o or "").lower()
+    if re.search(r"\bama\b|refus|signed off|against medical", o):
+        return "Refusal / AMA"
+    if re.search(r"cancel|disregard|no ems", o):
+        return "Cancelled"
+    if re.search(r"no patient|unfounded|gone on arrival|goa\b", o):
+        return "No patient"
+    return None
+
+
+def _canon_unit(u):
+    try:
+        from aigroup import canon_unit
+    except ImportError:
+        return None
+    return canon_unit(u)
+
+
 def call_kind(complaint, units, texts):
     """'ems', 'fire' (alarm, odor, elevator...), 'fire_maybe' (fire units, no reason heard yet) or 'fire_real' (an actual fire)."""
     units = list(units or [])
@@ -397,6 +580,8 @@ def call_kind(complaint, units, texts):
     if complaint and complaint not in FIRE_COMPLAINTS:
         return "ems"
     real = any(REAL_FIRE_RE.search(t or "") for t in texts)
+    if not real and any(SIGN_ON_RE.search(t or "") for t in texts):
+        return "ems"                         # "sign on and respond": an ambulance was sent, so it's medical
     if not complaint:
         if has_ems_unit or not units:
             return "ems"                     # unknown: keep it visible rather than risk hiding a medical call
@@ -449,7 +634,8 @@ class Board:
         self.merges = []             # (src, dst, why) not yet handled by the server
         self.units = {}              # unit id -> unit state
         self.last_by_tg = {}         # talkgroup -> (time, incident id)
-        self.thread = {}             # talkgroup -> (time, unit): who the conversation on that channel is with
+        self.thread = {}
+        self.unknown_speaker = set()  # audio urls said by a caller we couldn't identify (AI may not attach them)             # talkgroup -> (time, unit): who the conversation on that channel is with
         self.last_tx_by_tg = {}      # talkgroup -> (time, incident id or None) of the last transmission heard there
         self.last_units_by_tg = {}   # talkgroup -> (time, units named), e.g. "MIT 8, go ahead"
         self.exclude_cats = set(harvard_categories_exclude)
@@ -500,6 +686,9 @@ class Board:
         if not m or not 0 < int(m.group(1)) < 40:
             return None
         n = int(m.group(1))
+        th = self.thread.get(tg)
+        if th and th[1].endswith(f" {n}"):
+            return th[1]                          # "Paramedic 7, Pro." / "7, go ahead" = Paramedic 7
         for fam in ("Paramedic", "Pro", "ALS", "BLS", "MIT"):
             if f"{fam} {n}" in self.units:
                 return f"{fam} {n}"
@@ -545,7 +734,8 @@ class Board:
             st["incident"] = None
 
     def _update_incident_status(self, inc):
-        sts = [u["status"] for u in inc["units"].values()]
+        ems = [u for k, u in inc["units"].items() if k.startswith(EMS_UNIT_PREFIX)]
+        sts = [u["status"] for u in (ems if ems and inc.get("kind", "ems") == "ems" else inc["units"].values())]
         live = [s for s in sts if s != "clear"]
         if sts and not live:
             inc["status"] = "clear"
@@ -597,12 +787,24 @@ class Board:
 
     # -- main entry
     def ingest(self, rec):
-        """Feed one processed transmission (the record Monitor.process builds). Returns True if the board changed."""
+        """Feed one processed transmission (the record Monitor.process builds). Returns True if the board changed.
+        A keyup that clears a unit and gives it its next call ("Paramedic 1, you're clear with the refusal.
+        Paramedic 1, take 362 Rindge Ave ... for a fall") is handled as two transmissions."""
+        parts = split_compound(rec.get("text") or "", rec.get("talkgroup_name", ""))
+        if len(parts) < 2:
+            return self._ingest_one(rec)
+        changed = self._ingest_one(dict(rec, text=parts[0]))
+        changed = self._ingest_one(dict(rec, text=parts[1], id=f"{rec.get('id') or ''}b", part=2)) or changed
+        return changed
+
+    def _ingest_one(self, rec):
         text = (rec.get("text") or "").strip()
         if not text or rec.get("suspect"):
             return False
         t, tg = rec["time"], rec["talkgroup_name"]
         p = parse(text, tg)
+        shown = text                              # the card shows what was transcribed ...
+        text = normalize(text)                    # ... the rules below read the same cleaned-up text parse() saw
         # Who is talking? A unit calls in or is called ("Pro base, paramedic 9" / "17, go ahead") and the next
         # keyups on that channel are that unit's report, usually without its name.
         if not p["units"]:
@@ -614,12 +816,20 @@ class Board:
             th = self.thread.get(tg)
             if th and t - th[0] <= THREAD_MS:
                 implied = th[1]
+        if implied == "?":                      # a caller we couldn't identify is talking: not anyone's report
+            implied = None
+            self.unknown_speaker.add(rec.get("audio_url"))
+        if not p["units"] and re.search(r"\b(pro base|to pro\b|calling)\b|,\s*pro\W*$", text, re.I):
+            implied = None
+            self.thread[tg] = (t, "?")           # "NYC, as a pro base": a new caller we couldn't identify
         if len(p["units"]) == 1:
             self.thread[tg] = (t, p["units"][0])
         elif len(p["units"]) > 1:
             self.thread.pop(tg, None)
         elif implied:
             self.thread[tg] = (t, implied)      # the same conversation continues
+        elif self.thread.get(tg, (0, None))[1] == "?" and t - self.thread[tg][0] <= THREAD_MS:
+            self.thread[tg] = (t, "?")
         if p["units"]:
             self.last_units_by_tg[tg] = (t, p["units"])
         fix = self.fixes.get(rec.get("audio_url"))
@@ -652,6 +862,10 @@ class Board:
                     and p["status"] in (None, "responding"):
                 is_dispatch = True
             # A crew reporting its own new call: "We are responding to 31 Bowker Street in Boston for an active seizure"
+            if not is_dispatch and p["address"] and p["complaint"] and p["status"] in (None, "responding") \
+                    and re.search(r"\b(going|headed|heading|en route|respond\w*) (to|into)\b", text, re.I) \
+                    and not p["hospital"]:
+                is_dispatch = True                      # "Going to 526 Beacon Street, ETOH"
             if not is_dispatch and p["address"] and re.search(r"\bresponding (to|into)\b", text, re.I) \
                     and (p["complaint"] or p["town"] or re.search(r"mutual aid", text, re.I)):
                 is_dispatch = True
@@ -760,8 +974,9 @@ class Board:
             if tg not in inc["talkgroups"]:
                 inc["talkgroups"].append(tg)
             inc["last"] = max(inc["last"], t)
-            inc["timeline"].append({"time": t, "talkgroup_name": tg, "text": text, "audio_url": rec.get("audio_url"),
+            inc["timeline"].append({"time": t, "talkgroup_name": tg, "text": shown, "audio_url": rec.get("audio_url"),
                                     "status": p["status"], "dispatch": bool(is_dispatch), "inferred": inferred,
+                                    "units": list(p["units"]),     # incl. a unit implied by the keyup before
                                     "hits": [] if inferred else [{"term": h["term"], "level": h["level"]}
                                                                  for h in rec.get("hits") or [] if not h.get("suspect")]})
             del inc["timeline"][:-40]
@@ -959,8 +1174,8 @@ class Board:
                     inc["transport_level"] = res["transport_level"]
                 if res.get("hospital"):
                     inc["hospital"] = str(res["hospital"])[:40]
-                if res.get("outcome"):
-                    inc["outcome"] = str(res["outcome"])[:40]
+                if norm_outcome(res.get("outcome")):
+                    inc["outcome"] = norm_outcome(res.get("outcome"))
             if res.get("harvard") and (res.get("confidence") or 0) >= 0.5 and not inc.get("harvard"):
                 inc["harvard"] = "medium"
                 loc = res.get("harvard_location") or "Harvard (AI)"
@@ -993,6 +1208,8 @@ class Board:
                         inc["harvard"] = "high" if h["level"] == "high" else (inc["harvard"] or "medium")
         for e in lines:
             p = parse(e["text"], e["talkgroup_name"])
+            if not p["units"] and e.get("units"):
+                p = dict(p, units=list(e["units"]))     # "Paramedic 8, go ahead" -> "1293 Cambridge Street ..."
             self._fill(inc, p)
             if e["talkgroup_name"] not in inc["talkgroups"]:
                 inc["talkgroups"].append(e["talkgroup_name"])
@@ -1013,6 +1230,11 @@ class Board:
                 inc["transport_level"] = extract_transport_level(e["text"]) or inc.get("transport_level")
                 if re.search(r"\b(AMA|refus\w*|signed off|refusal)\b", e["text"], re.I):
                     inc["outcome"] = "Refusal / AMA"
+        ai = inc.get("ai_call") or {}                 # a card the AI found keeps the location / complaint it gave
+        if not inc["address"] and not inc["place"] and ai.get("location"):
+            inc["place"] = ai["location"]
+        if not inc["complaint"] and ai.get("complaint"):
+            inc["complaint"] = ai["complaint"]
         if lines:
             inc["opened"] = min(inc["opened"], lines[0]["time"]) if inc.get("opened") else lines[0]["time"]
             inc["times"].setdefault("dispatched", lines[0]["time"])
@@ -1041,9 +1263,110 @@ class Board:
             self._rebuild(inc)
             return json.loads(json.dumps(inc))
 
+    # ---------------------------------------------------------------- AI grouping pass helpers (see aigroup.py)
+    def resolve(self, iid):
+        with self.lock:
+            return self._resolve(iid)
+
+    def card_of(self, audio_url):
+        """Id of the card (open or recently closed) that has this transmission, or None."""
+        with self.lock:
+            for inc in list(self.incidents.values()) + self.closed:
+                if not inc.get("dismissed") and any(e.get("audio_url") == audio_url for e in inc["timeline"]):
+                    return inc["id"]
+        return None
+
+    def crew_touched(self, iid):
+        return any(f.get("from") == iid or f.get("to") == iid for f in self.fixes.values())
+
+    def create_from_ai(self, rec, call):
+        """A call the rules missed: open a card from its first transmission. Returns the new card id."""
+        with self.lock:
+            text = rec.get("text") or ""
+            p = parse(text, rec.get("talkgroup_name", ""))
+            inc = self._new_incident(rec, p)
+            if not inc["address"] and not inc["place"] and call.get("location"):
+                inc["place"] = str(call["location"])[:60]
+            if not inc["complaint"] and call.get("complaint"):
+                inc["complaint"] = str(call["complaint"])[:40]
+            inc["timeline"].append({"time": rec["time"], "talkgroup_name": rec.get("talkgroup_name", ""), "text": text,
+                                    "audio_url": rec.get("audio_url"), "status": p["status"], "dispatch": True,
+                                    "inferred": False, "hits": [{"term": h["term"], "level": h["level"]}
+                                                                for h in rec.get("hits") or [] if not h.get("suspect")]})
+            self._apply_hits(inc, rec)
+            u = _canon_unit(call.get("unit"))
+            if u:
+                self._set_unit(u, "dispatched", inc, rec["time"], rec.get("talkgroup_name", ""))
+            inc["found_by_ai"] = True
+            inc["ai_call"] = {"location": str(call.get("location") or "")[:60] or None,
+                              "complaint": str(call.get("complaint") or "")[:40] or None}
+            inc["found_by"] = call.get("found_by") or "grouping"
+            if call.get("ai_reason"):
+                inc["ai_reason"] = call["ai_reason"]
+            inc["review"] = None                    # crew verdict: "real" / "false" (Real call / Not a call)
+            inc["kind"] = call_kind(inc.get("complaint"), inc["units"].keys(), [text])
+            return inc["id"]
+
+    def set_from_ai(self, iid, call):
+        """Fill status / transport / hospital / outcome / missing unit from the AI grouping. True if anything changed."""
+        with self.lock:
+            inc = self._find_any(iid)
+            if not inc or inc.get("closed"):
+                return False
+            before = json.dumps([inc.get(k) for k in ("status", "transport_level", "hospital", "outcome")]
+                                + [inc["units"].get(u, {}).get("status") for u in inc["units"]] + list(inc["units"]))
+            t = inc.get("last") or _now_ms()
+            u = _canon_unit(call.get("unit"))
+            if u and not inc["units"]:
+                self._set_unit(u, "dispatched", inc, inc["opened"], (inc.get("talkgroups") or [""])[0])
+            st = call.get("status")
+            if st in STATUS_ORDER:
+                amb = [x for x in inc["units"] if x.startswith(EMS_UNIT_PREFIX)] or list(inc["units"])[:1]
+                for x in amb:
+                    if inc["units"][x]["status"] != st:
+                        inc["units"][x].update(status=st, since=t, inferred=True)
+                        g = self.units.get(x)
+                        if g:
+                            g.update(status=st, since=t)
+                            g["incident"] = None if st == "clear" else inc["id"]
+                if not inc["units"]:
+                    inc["status"] = st
+                inc.setdefault("times", {}).setdefault(st, t)
+                self._update_incident_status(inc)
+            if call.get("transport_level") in ("ALS", "BLS"):
+                inc["transport_level"] = call["transport_level"]
+            if call.get("hospital"):
+                inc["hospital"] = extract_hospital(str(call["hospital"])) or str(call["hospital"])[:40]
+            if norm_outcome(call.get("outcome")):
+                inc["outcome"] = norm_outcome(call.get("outcome"))
+            after = json.dumps([inc.get(k) for k in ("status", "transport_level", "hospital", "outcome")]
+                               + [inc["units"].get(u, {}).get("status") for u in inc["units"]] + list(inc["units"]))
+            return before != after
+
+    def unit_line(self, iid, audio_url, to_iid=None):
+        """True if this line names a unit that is on card iid (its own traffic: "Paramedic 5, transporting"), and
+        the card it would go to doesn't have that unit. The AI may not take such lines away: doing so strips the
+        call of the unit that is working it."""
+        with self.lock:
+            src = self._find_any(iid)
+            if not src:
+                return False
+            e = next((x for x in src["timeline"] if x.get("audio_url") == audio_url and not x.get("note")), None)
+            if not e:
+                return False
+            named = {_canon_unit(u) or u for u in parse(e.get("text") or "", e.get("talkgroup_name", ""))["units"]}
+            mine = named & {_canon_unit(u) or u for u in src["units"]}
+            if not mine:
+                return False
+            dst = self._find_any(to_iid) if to_iid else None
+            return not (dst and mine & {_canon_unit(u) or u for u in dst["units"]})
+
     def crew_placed(self, audio_url):
         f = self.fixes.get(audio_url)
         return bool(f)
+
+    def other_speaker(self, audio_url):
+        return audio_url in self.unknown_speaker
 
     def kind_of(self, audio_url):
         """EMS / fire kind of the call this transmission went into (None if it isn't on the board)."""
@@ -1097,6 +1420,28 @@ class Board:
             n = len(self.closed)
             self.closed = [c for c in self.closed if c["id"] != iid]
             return len(self.closed) != n
+
+    def set_review(self, iid, verdict=None, note=None):
+        """Crew verdict on a card the AI found ("real" / "false") and what the rules learned from it."""
+        with self.lock:
+            inc = self._find_any(self._resolve(iid))
+            if not inc:
+                return None
+            if verdict:
+                inc["review"] = verdict
+            if note is not None:
+                inc["review_note"] = note
+            return json.loads(json.dumps({k: v for k, v in inc.items() if k != "address_key"}))
+
+    def restore_ai(self, first, call, more=()):
+        """After a restart: put back a card the AI had found (the rules alone don't make it). Returns its id."""
+        if self.card_of(first.get("audio_url")):
+            return None
+        iid = self.create_from_ai(first, call)
+        for r in more:
+            if r.get("audio_url") and not self.card_of(r["audio_url"]):
+                self.attach(iid, r)
+        return iid
 
     def tick(self, t=None):
         with self.lock:

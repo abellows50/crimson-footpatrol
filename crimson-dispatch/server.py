@@ -24,6 +24,7 @@ import glob
 import json
 import os
 import queue
+import re
 import tempfile
 import threading
 import time
@@ -34,7 +35,7 @@ import urllib.request
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from matcher import Matcher, looks_like_dispatch, LEVEL_RANK
+from matcher import Matcher, looks_like_dispatch, LEVEL_RANK, tokenize, number_readings
 from board import Board, call_kind, parse as parse_radio
 from ai import ClaudeReader
 from demo import DemoController, DemoFetcher
@@ -43,6 +44,7 @@ from textfilter import TextFilter
 from ourcalls import CallLog, MILESTONES, OUTCOMES, SOURCES
 from feedback import FeedbackStore
 from geo import Geocoder, travel
+import analyze
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(HERE, "config.json")
@@ -113,7 +115,7 @@ class Config:
             return json.loads(json.dumps(self.data))
 
     def update(self, new):
-        allowed = {"talkgroups", "rules", "address_ranges", "whisper_prompt", "base"}
+        allowed = {"talkgroups", "rules", "address_ranges", "whisper_prompt", "base", "crew_places", "alarm_filters"}
         with self.lock:
             for k in allowed & set(new):
                 self.data[k] = new[k]
@@ -386,10 +388,11 @@ class LocalWhisper:
             return np.zeros(0, dtype=np.float32)
         return np.concatenate(chunks).astype(np.float32) / 32768.0
 
-    def _pass(self, audio, prompt, beam, vad, use_prompt):
+    def _pass(self, audio, prompt, beam, vad, use_prompt, rescue=False):
         kw = dict(language="en", beam_size=beam, condition_on_previous_text=False,
                   initial_prompt=(prompt or None) if use_prompt else None,
-                  no_speech_threshold=0.6, log_prob_threshold=-1.0, compression_ratio_threshold=2.4)
+                  no_speech_threshold=None if rescue else 0.6, log_prob_threshold=None if rescue else -1.0,
+                  compression_ratio_threshold=2.4)
         if vad:
             # gentler than the default so weak radio speech isn't cut out
             kw.update(vad_filter=True, vad_parameters={"threshold": 0.35, "min_silence_duration_ms": 500,
@@ -399,10 +402,14 @@ class LocalWhisper:
         for seg in segments:
             # Whisper "fills in" static and squelch with guesses (often words from the prompt).
             # Drop segments it is itself unsure are speech, very low-confidence ones, and repetition loops.
-            if seg.no_speech_prob > 0.6 and seg.avg_logprob < -0.8:
-                continue
-            if seg.avg_logprob < -1.3 or seg.compression_ratio > 2.4:
-                continue
+            if rescue:
+                if seg.compression_ratio > 2.4 or seg.avg_logprob < -1.6:
+                    continue
+            else:
+                if seg.no_speech_prob > 0.6 and seg.avg_logprob < -0.8:
+                    continue
+                if seg.avg_logprob < -1.3 or seg.compression_ratio > 2.4:
+                    continue
             keep.append(seg)
         text = " ".join(x.text.strip() for x in keep).strip()
         weight = sum(max(1, len(x.text)) for x in keep)
@@ -410,6 +417,7 @@ class LocalWhisper:
         return text, conf
 
     def transcribe(self, path, prompt):
+        self.last_rescued = False
         audio = self._decode(path)
         if audio.size < 1600:   # under 0.1 s: nothing to transcribe
             return ""
@@ -426,7 +434,17 @@ class LocalWhisper:
                     text, conf = t2, c2
                     if a is plain:
                         ENHANCE_STATS["fallback_used"] += 1
+        if not text:
+            text = self._rescue(plain if plain is not None else audio, prompt)
         return text
+
+    def _rescue(self, audio, prompt):
+        """Nothing survived: short radio keyups ("Seventeen, on location") often get marked 'probably not speech'.
+        Transcribe once more with Whisper's own no-speech skipping turned off and keep anything that isn't a
+        repetition loop. It's shown as faint text; the radio filter still hides it if it isn't radio talk."""
+        t, _c = self._pass(audio, prompt, beam=5, vad=False, use_prompt=False, rescue=True)
+        self.last_rescued = bool(t)
+        return t
 
 
 class OpenAIWhisper:
@@ -544,8 +562,9 @@ class Hub:
 # ---------------------------------------------------------------------------- monitor
 
 class Monitor:
-    def __init__(self, args, config, hub, pusher, fetcher):
+    def __init__(self, args, config, hub, pusher, fetcher, quiet=False):
         self.args, self.config, self.hub, self.pusher = args, config, hub, pusher
+        self.quiet = quiet           # Analyze / re-score: no console line for every call
         self.fetcher = fetcher
         self.matcher = Matcher(config.get())
         self.textfilter = self._make_textfilter()
@@ -563,14 +582,22 @@ class Monitor:
         self.feedback = None         # FeedbackStore: crew corrections, learned fixes (shared by live / demo / replay)
         self.geo = None              # Geocoder (shared)
         self.calllog = None          # set for the live monitor only (not replays)
+        self.learner = None          # RuleLearner: rules learned from AI-found calls the crew confirmed
+        self._ai_cards_sig = None
         self.lock = threading.Lock()
         self.status = {"started": now_ms(), "last_poll_ok": None, "last_poll_error": None,
                        "last_call_ms": None, "transcriber": "loading...", "feed_alarm_sent": False,
-                       "calls_processed": 0, "fetcher": getattr(fetcher, "name", "?"), "asr_sec": None}
+                       "calls_processed": 0, "fetcher": getattr(fetcher, "name", "?"), "asr_sec": None,
+                       "long_mode": getattr(args, "long", None), "skipped_short": 0}
         self._asr_times = collections.deque(maxlen=30)
         os.makedirs(LOG_DIR, exist_ok=True)
 
     # -- helpers
+    def _say(self, msg):
+        """A console line about one call (skipped when Analyze or a re-score is working through thousands)."""
+        if not self.quiet:
+            log(msg)
+
     def reload_rules(self):
         self.matcher = Matcher(self.config.get())
         self.textfilter = self._make_textfilter()
@@ -605,6 +632,31 @@ class Monitor:
             st["ai"] = self.ai.status if self.ai else "off"
             return {"calls": list(self.calls)[-150:], "alerts": list(self.alerts), "board": self.board.snapshot(),
                     "status": st, "talkgroups": self.tg_names()}
+
+    def long_calls(self, min_len=3, hours=12, limit=500):
+        """Transmissions longer than min_len seconds (more likely to be dispatches), newest last.
+        Reads today's and yesterday's call logs for history, plus what's in memory."""
+        cutoff = now_ms() - hours * 3_600_000
+        recs = {}
+        if not getattr(self, "log_tag", None):
+            for f in sorted(glob.glob(os.path.join(LOG_DIR, "calls-*.jsonl")))[-2:]:
+                try:
+                    with open(f) as fh:
+                        for line in fh:
+                            try:
+                                r = json.loads(line)
+                            except ValueError:
+                                continue
+                            if r.get("id"):
+                                recs[r["id"]] = r
+                except OSError:
+                    pass
+        with self.lock:
+            for r in self.calls:
+                recs[r.get("id") or id(r)] = r
+        out = [r for r in recs.values() if (r.get("len") or 0) > min_len and (r.get("time") or 0) >= cutoff]
+        out.sort(key=lambda r: r.get("time") or 0)
+        return out[-limit:]
 
     def _set_status(self, **kw):
         with self.lock:
@@ -704,6 +756,20 @@ class Monitor:
                 backoff = min(backoff * 2, 60)
             time.sleep(backoff)
 
+    def _keep_silent_clip(self, path, cid):
+        """Whisper heard nothing in this clip: keep a copy (logs/training/silent, newest 400) so the crew can
+        Fix it and so we can see what's being missed."""
+        try:
+            d = os.path.join(LOG_DIR, "training", "silent")
+            os.makedirs(d, exist_ok=True)
+            import shutil
+            shutil.copyfile(path, os.path.join(d, re.sub(r"[^A-Za-z0-9_.-]", "_", str(cid or uuid.uuid4().hex))[:60] + ".mp3"))
+            old = sorted(glob.glob(os.path.join(d, "*.mp3")), key=os.path.getmtime)[:-400]
+            for f in old:
+                os.remove(f)
+        except OSError:
+            pass
+
     def _download(self, url):
         last = None
         for attempt in range(3):
@@ -729,24 +795,33 @@ class Monitor:
                 log("Processing error:\n" + traceback.format_exc())
 
     def process(self, call, backfill):
+        min_len = getattr(self.args, "long", None)
+        if min_len is not None and call.get("len") is not None and call["len"] <= min_len:
+            # Long mode: short keyups ("copy", "on scene") are rarely dispatches; don't download or transcribe them.
+            with self.lock:
+                self.status["skipped_short"] = self.status.get("skipped_short", 0) + 1
+            return
         tg = str(call.get("talkgroupNum"))
         tg_name = self.tg_names().get(tg, f"TG {tg}")
         t_ms = parse_iso_ms(call["time"])
         url = call.get("url")
-        text, err = "", None
+        text, err, rescued = "", None, False
         try:
             path = self._download(url)
             try:
                 t0 = time.time()
                 text = self.transcriber.transcribe(path, self.config.get().get("whisper_prompt", ""))
+                rescued = bool(text) and getattr(getattr(self.transcriber, "inner", self.transcriber), "last_rescued", False)
                 self._asr_times.append(time.time() - t0)
                 with self.lock:
                     self.status["asr_sec"] = round(sum(self._asr_times) / len(self._asr_times), 2)
+                if not text and not getattr(self, "log_tag", None):
+                    self._keep_silent_clip(path, call.get("_id"))
             finally:
                 os.unlink(path)
         except Exception as e:
             err = f"{type(e).__name__}: {e}"
-            log(f"Transcribe failed for {url}: {err}")
+            self._say(f"Transcribe failed for {url}: {err}")
         if text.lower().strip(" .!?,") in HALLUCINATIONS:
             text = ""
         asr_text, fixed = None, None
@@ -781,7 +856,8 @@ class Monitor:
         prev_terms = set().union(*[x[2] for x in ctx]) if ctx else set()
         if text and not suspect:
             ctx.append((t_ms, text, {h["term"] for h in hits}))
-        context_text = " ".join(x[1] for x in ctx)
+        # one sentence per keyup ("...going home to Harvard." + "Private call, ..." is not "Harvard private call")
+        context_text = " ".join(x[1] if re.search(r"[.?!]\s*$", x[1]) else x[1] + "." for x in ctx)
         if len(ctx) > 1 and text and not suspect:
             # Only keep matches that exist *because* words were split across keyups
             # (e.g. "...respond to Kirkland" / "House, for a fall"), not ones already
@@ -793,6 +869,11 @@ class Monitor:
                     hits.append(h)
             hits.sort(key=lambda h: -LEVEL_RANK[h["level"]])
 
+        # the crew's alarm filters (Settings > Harvard places): HUHS / outside the Harvard College area -> amber
+        filters = self.config.get().get("alarm_filters") or {}
+        if hits and (filters.get("no_huhs") or filters.get("near_only")):
+            hits = self.matcher.apply_alarm_filters(hits, context_text, filters)
+
         rec = {"id": call.get("_id"), "time": t_ms, "talkgroup": tg, "talkgroup_name": tg_name,
                "len": call.get("len"), "audio_url": url, "text": text, "error": err,
                "hits": hits, "dispatch": looks_like_dispatch(context_text), "backfill": bool(backfill),
@@ -800,6 +881,8 @@ class Monitor:
                "suspect": suspect, "filtered": filtered, "raw_text": raw_text}
         if fixed:
             rec["asr_text"], rec["fixed"] = asr_text, fixed
+        if rescued:
+            rec["faint"] = True          # recovered from a clip Whisper first judged "no speech"
         with self.lock:
             self.calls.append(rec)
             self.status["last_call_ms"] = max(self.status["last_call_ms"] or 0, t_ms)
@@ -816,7 +899,7 @@ class Monitor:
         except Exception:
             log("Board error:\n" + traceback.format_exc())
         if text:
-            log(f"[{tg_name}] {text}" + (f"   <-- {[h['term'] for h in hits]}" if hits else ""))
+            self._say(f"[{tg_name}] {text}" + (f"   <-- {[h['term'] for h in hits]}" if hits else ""))
         if hits and (not backfill or backfill == "rewind"):
             # EMS only: a Harvard fire alarm / odor / elevator call doesn't alarm; an actual fire at Harvard does
             kind = self.board.kind_of(rec["audio_url"])
@@ -824,7 +907,7 @@ class Monitor:
                 p = parse_radio(context_text, tg_name)
                 kind = call_kind(p["complaint"], p["units"], [context_text])
             if kind == "fire":
-                log(f"(Harvard fire call that isn't an actual fire: no alert) {[h['term'] for h in hits]}")
+                self._say(f"(Harvard fire call that isn't an actual fire: no alert) {[h['term'] for h in hits]}")
             else:
                 self.raise_alert(rec, hits, context_text)
 
@@ -866,7 +949,7 @@ class Monitor:
                      "transmissions": [{"time": rec["time"], "text": rec["text"], "audio_url": rec["audio_url"],
                                         "talkgroup_name": rec["talkgroup_name"]}]}
             self.alerts.append(alert)
-        log(f"*** {level.upper()} ALERT: {[h['term'] for h in hits]}")
+        self._say(f"*** {level.upper()} ALERT: {[h['term'] for h in hits]}")
         self.hub.publish("alert", alert)
         with open(self._log_path("alerts"), "a") as f:
             f.write(json.dumps(alert) + "\n")
@@ -921,6 +1004,10 @@ class Monitor:
             except Exception:
                 pass
         self._logged_recs = recs
+        if not getattr(self, "log_tag", None):
+            n_ai = self._restore_ai_cards(cutoff)
+            if n_ai:
+                log(f"Call board: put back {n_ai} call(s) the AI had found")
         self.board.tick()
         if recs:
             snap = self.board.snapshot()
@@ -942,7 +1029,7 @@ class Monitor:
     def _handle_merges(self):
         """Duplicate board cards were merged: logged calls follow, and Claude re-reads the combined card."""
         for src, dst, why in self.board.pop_merges():
-            log(f"Merged duplicate call {src} into {dst} ({why})")
+            self._say(f"Merged duplicate call {src} into {dst} ({why})")
             if self.calllog:
                 self.calllog.relink(src, dst)
             if self.ai:
@@ -1045,9 +1132,113 @@ class Monitor:
                         "heard": next((e["text"] for e in o.get("timeline", []) if e.get("dispatch")), "")[:200]})
         return out
 
+    AI_CARDS = os.path.join(LOG_DIR, "ai-found-calls.json")
+
+    def _save_ai_cards(self, snap):
+        """Cards only the AI found aren't rebuilt by the rules after a restart: remember them (radio lines only)."""
+        if getattr(self, "log_tag", None):
+            return
+        try:
+            with open(self.AI_CARDS) as f:
+                saved = json.load(f)
+        except (OSError, ValueError):
+            saved = {}
+        changed = False
+        for inc in snap["incidents"] + snap["closed"]:
+            if not inc.get("found_by_ai"):
+                continue
+            lines = [{k: e.get(k) for k in ("time", "talkgroup_name", "text", "audio_url")}
+                     for e in inc["timeline"] if e.get("audio_url") and not e.get("note")]
+            if not lines:
+                continue
+            rec = {"first": dict(lines[0], id=inc["id"][1:]), "more": lines[1:], "at": inc.get("opened"),
+                   "call": dict(inc.get("ai_call") or {}, found_by=inc.get("found_by"), ai_reason=inc.get("ai_reason")),
+                   "review": inc.get("review"), "review_note": inc.get("review_note")}
+            if saved.get(inc["id"]) != rec:
+                saved[inc["id"]], changed = rec, True
+        if changed:
+            cutoff = now_ms() - 2 * 86400_000
+            saved = {k: v for k, v in saved.items() if (v.get("at") or 0) >= cutoff}
+            try:
+                tmp = self.AI_CARDS + ".tmp"
+                with open(tmp, "w") as f:
+                    json.dump(saved, f)
+                os.replace(tmp, self.AI_CARDS)
+            except OSError:
+                pass
+
+    def _restore_ai_cards(self, cutoff):
+        try:
+            with open(self.AI_CARDS) as f:
+                saved = json.load(f)
+        except (OSError, ValueError):
+            return 0
+        n = 0
+        for iid, v in sorted(saved.items(), key=lambda kv: kv[1].get("at") or 0):
+            if (v.get("at") or 0) < cutoff or v.get("review") == "false":
+                continue
+            try:
+                from aigroup import dispatch_anchor
+                lines = [v["first"]] + list(v.get("more") or [])
+                anchor = dispatch_anchor(lines, (v.get("call") or {}).get("location"))
+                if not anchor and v.get("review") != "real":
+                    continue                     # an older AI card with no real dispatch line: don't bring it back
+                anchor = anchor or v["first"]
+                new = self.board.restore_ai(dict(anchor, id=v["first"].get("id")), v.get("call") or {},
+                                            [x for x in lines if x is not anchor])
+            except Exception:
+                continue
+            if new:
+                self.board.set_review(new, v.get("review"), v.get("review_note"))
+                n += 1
+        self.board.tick()
+        return n
+
+    def review_ai_card(self, iid, verdict, by=None):
+        """Crew verdict on a card the AI found. 'false' takes it off the board; 'real' keeps it and teaches the rules."""
+        inc = self.board.get(iid)
+        if not inc or not inc.get("found_by_ai"):
+            raise ValueError("that isn't a call the AI found")
+        first = next((e for e in inc["timeline"] if e.get("audio_url") and not e.get("note")), {})
+        try:
+            with open(os.path.join(LOG_DIR, "training", "ai-found.jsonl"), "a") as f:
+                f.write(json.dumps({"at": now_ms(), "card": inc["id"], "verdict": verdict, "by": (by or "")[:40],
+                                    "found_by": inc.get("found_by"), "reason": inc.get("ai_reason"),
+                                    "lines": [e.get("text") for e in inc["timeline"] if not e.get("note")][:12]}) + "\n")
+        except OSError:
+            pass
+        if verdict == "false":
+            self.board.set_review(inc["id"], "false", f"Marked not a call by {by or 'the crew'}")
+            self._save_ai_cards(self.board.snapshot())
+            self.board.dismiss(inc["id"], by)
+            self.dismiss_alerts_for_incident(inc, by)
+            g = getattr(self, "grouper", None)
+            if g and first.get("text"):
+                g.not_calls.append(first["text"])
+            log(f"AI-found call {inc['id']} marked NOT a call by {by or 'someone'}")
+            self._publish_board()
+            return {"review": "false"}
+        if not self.learner or not self.learner.reader:
+            self.board.set_review(inc["id"], "real", "Thanks! (AI is off, so the rules can't be updated)")
+            self._publish_board()
+            return {"review": "real"}
+        self.board.set_review(inc["id"], "real", "Thanks! Updating the rules…")
+        self._publish_board()
+        log(f"AI-found call {inc['id']} confirmed REAL by {by or 'someone'}: learning a rule")
+        context = [dict(r) for r in list(self.calls) if r.get("text")]
+        context += [r for r in self._logged_recs.values() if r.get("text")] if self._logged_recs else []
+
+        def done(card_id, res):
+            self.board.set_review(card_id, None, res.get("message"))
+            self._publish_board()
+            self.hub.publish("learned", {"card": card_id, **res})
+        self.learner.learn_async(inc, context, on_done=done)
+        return {"review": "real", "learning": True}
+
     def _publish_board(self):
         self._handle_merges()
         snap = self.board.snapshot()
+        self._save_ai_cards(snap)
         self.hub.publish("board", snap)
         self._acuity_from_board(snap)
         if self.calllog:
@@ -1101,8 +1292,8 @@ class Monitor:
 
     def _apply_ai_lines(self, iid, res):
         """The AI check says some radio is on the wrong card: move it (never against a crew correction)."""
-        if (res.get("confidence") or 0) < 0.7:
-            return
+        if (res.get("confidence") or 0) < 0.7 or getattr(self, "grouper", None):
+            return                       # with the AI grouping pass on, it alone moves lines (no tug of war)
         moved = 0
         for url in res.get("remove_audio") or []:
             if not self.board.crew_placed(url) and self.board.detach(iid, url, record=False):
@@ -1321,8 +1512,31 @@ class Monitor:
 
 # ---------------------------------------------------------------------------- HTTP
 
+def clean_crew_places(places):
+    """Validate the crew's Harvard / not-Harvard place list from the dashboard."""
+    out = []
+    for p in places or []:
+        assert isinstance(p, dict), "each place must be an object"
+        addrs = [str(a).strip()[:120] for a in p.get("addresses") or [] if str(a).strip()]
+        names = [str(n).strip()[:120] for n in p.get("names") or [] if str(n).strip()]
+        if not addrs and not names:
+            continue
+        treat = p.get("treat") if p.get("treat") in ("harvard", "possible", "not") else \
+            ("harvard" if p.get("harvard") else "not")
+        e = {"label": str(p.get("label") or (addrs or names)[0]).strip()[:120], "treat": treat,
+             "harvard": treat == "harvard", "addresses": addrs, "names": names}
+        for k in ("note", "by", "at"):
+            if p.get(k):
+                e[k] = p[k] if k == "at" else str(p[k])[:200]
+        out.append(e)
+    return out
+
+
 def make_handler(monitor, config, hub, args, demo=None):
     dashboard_path = os.path.join(HERE, "dashboard.html")
+    long_path = os.path.join(HERE, "long.html")
+    pages = {"/long": long_path, "/long.html": long_path,
+             "/analyze": os.path.join(HERE, "analyze.html"), "/analyze.html": os.path.join(HERE, "analyze.html")}
 
     class H(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
@@ -1350,8 +1564,8 @@ def make_handler(monitor, config, hub, args, demo=None):
 
         def do_GET(self):
             p = urllib.parse.urlparse(self.path).path
-            if p in ("/", "/index.html"):
-                with open(dashboard_path, "rb") as f:
+            if p in ("/", "/index.html") or p in pages:
+                with open(pages.get(p, dashboard_path), "rb") as f:
                     body = f.read()
                 if demo:
                     body = body.replace(b"</head>", b"<script>window.CRIMSON_DEMO = true;</script></head>", 1)
@@ -1397,6 +1611,15 @@ def make_handler(monitor, config, hub, args, demo=None):
                 self._json(monitor.calls_payload())
             elif p == "/api/board":
                 self._json(monitor.board.snapshot())
+            elif p == "/api/long":
+                qs = dict(urllib.parse.parse_qsl(urllib.parse.urlparse(self.path).query))
+                try:
+                    min_len = float(qs.get("min", 3))
+                    hours = min(max(float(qs.get("hours", 12)), 0.5), 48)
+                except ValueError:
+                    return self._json({"error": "bad min/hours"}, 400)
+                self._json({"calls": monitor.long_calls(min_len, hours), "min": min_len, "hours": hours,
+                            "talkgroups": monitor.tg_names()})
             elif p == "/api/geo":
                 if not monitor.geo:
                     return self._json({"error": "maps not available"}, 404)
@@ -1430,12 +1653,23 @@ def make_handler(monitor, config, hub, args, demo=None):
                 self.send_header("Cache-Control", "max-age=86400")
                 self.end_headers()
                 self.wfile.write(data)
+            elif p == "/api/learned":
+                lr = getattr(monitor, "learner", None)
+                g = getattr(monitor, "grouper", None)
+                self._json({"rules": lr.listing() if lr else [],
+                            "review": {"status": g.sweep_status if g else "off (AI grouping is off)",
+                                       "found": g.sweep_found if g else 0, "every_s": 180}})
             elif p == "/api/feedback":
                 fb = monitor.feedback
                 if not fb:
                     return self._json({"error": "feedback not available"}, 404)
                 self._json({"stats": fb.stats(config.get().get("whisper_prompt", "")), "clips": fb.clip_verdicts(),
                             "alerts": {k: r["verdict"] for k, r in fb.alerts.items()}})
+            elif p == "/api/analyze":
+                an = getattr(monitor, "analyzer", None)
+                if not an:
+                    return self._json({"error": "Analyze is only on the live dashboard."}, 404)
+                self._json({"job": an.job.info() if an.job else None, "results": an.results()})
             elif p == "/api/replay":
                 job = monitor.replay
                 self._json(job.info(full=True) if job else {"state": "none"})
@@ -1469,12 +1703,12 @@ def make_handler(monitor, config, hub, args, demo=None):
                             if isinstance(v, (int, float)):
                                 return int(v)
                             return int(dt.datetime.strptime(str(v)[:16], "%Y-%m-%dT%H:%M").timestamp() * 1000)
-                        out = demo.start(ms(body.get("from")), ms(body.get("to")), int(body.get("speed") or 5),
+                        out = demo.start(ms(body.get("from")), ms(body.get("to")), int(body.get("speed", 5)),
                                          str(body.get("label") or "")[:120])
                     elif action == "pause":
                         out = demo.pause(bool(body.get("on", True)))
                     elif action == "speed":
-                        out = demo.set_speed(int(body.get("speed") or 5))
+                        out = demo.set_speed(int(body.get("speed", 5)))
                     elif action == "stop":
                         out = demo.stop()
                     else:
@@ -1488,11 +1722,18 @@ def make_handler(monitor, config, hub, args, demo=None):
                 try:
                     for r in body.get("rules", []):
                         assert r["term"] and r.get("level", "high") in LEVEL_RANK
+                    if "crew_places" in body:
+                        body["crew_places"] = clean_crew_places(body["crew_places"])
+                    if "alarm_filters" in body:
+                        f0 = body["alarm_filters"] if isinstance(body["alarm_filters"], dict) else {}
+                        body["alarm_filters"] = {"no_huhs": bool(f0.get("no_huhs")), "near_only": bool(f0.get("near_only"))}
                     if "base" in body:
                         b0 = body["base"] if isinstance(body["base"], dict) else {}
                         body["base"] = {"address": str(b0.get("address") or "")[:200], "label": str(b0.get("label") or "")[:60]}
                     new = config.update(body)
                     monitor.reload_rules()
+                    if getattr(monitor, "analyzer", None):
+                        monitor.analyzer.rescore_if_rules_changed()     # Analyze follows the new rules
                     return self._json(new)
                 except Exception as e:
                     return self._json({"error": f"bad config: {e}"}, 400)
@@ -1506,6 +1747,74 @@ def make_handler(monitor, config, hub, args, demo=None):
                 except RuntimeError as e:
                     return self._json({"error": str(e)}, 409)
                 return self._json(job.info())
+            if p == "/api/analyze/harvard":
+                an = getattr(monitor, "analyzer", None)
+                if not an:
+                    return self._json({"error": "Analyze is only on the live dashboard."}, 404)
+                try:
+                    ruling = body.get("ruling") or ("not" if body.get("removed", True) else "clear")
+                    an.set_ruling(body.get("kind"), body.get("id"), ruling, body.get("by"))
+                except ValueError as e:
+                    return self._json({"error": str(e)}, 400)
+                return self._json({"ok": True})
+            if p == "/api/analyze/place":
+                # "always treat <address> as Harvard / not Harvard": goes on the crew list in Settings > Harvard places
+                an = getattr(monitor, "analyzer", None)
+                if not an:
+                    return self._json({"error": "Analyze is only on the live dashboard."}, 404)
+                if not self._admin_ok():
+                    return self._json({"error": "admin key required"}, 403)
+                addr = str(body.get("address") or "").strip()[:120]
+                addr = re.sub(r"^(\d+)\s*[A-Za-z]\b", r"\1", addr)          # "15A Mill St": the building, 15 Mill St
+                if not re.match(r"\d+\s+\S", addr):
+                    return self._json({"error": "give a street address, e.g. 15 Mill St"}, 400)
+                loc = monitor.matcher.locator
+
+                def keys_of(a):
+                    return set(loc.parse_place(a, tokenize, number_readings)) if loc.ok else set()
+                keys = keys_of(addr)
+                if loc.ok and not keys:
+                    return self._json({"error": f"\"{addr}\" isn't a Cambridge street the address list knows, so the "
+                                                "crew list couldn't use it"}, 400)
+                treat = body.get("treat") if body.get("treat") in ("harvard", "possible", "not") else \
+                    ("harvard" if body.get("harvard") else "not")
+                harvard = treat == "harvard"
+                places = []
+                for pl in config.get().get("crew_places", []):   # this address moves to the new entry; the rest stays
+                    rest = [a for a in pl.get("addresses", []) if a.strip().lower() != addr.lower()
+                            and not (keys and keys_of(a) == keys)]     # the same address, spelled another way
+                    if rest or pl.get("names"):
+                        places.append(dict(pl, addresses=rest))
+                places.insert(0, {"label": addr, "treat": treat, "harvard": harvard, "addresses": [addr], "names": [],
+                                  "note": "added from Analyze", "by": str(body.get("by") or "")[:40], "at": now_ms()})
+                config.update({"crew_places": clean_crew_places(places)})
+                monitor.reload_rules()
+                an.rescore_if_rules_changed()
+                return self._json({"ok": True, "address": addr, "treat": treat, "harvard": harvard})
+            if p == "/api/analyze/rescore":
+                an = getattr(monitor, "analyzer", None)
+                if not an:
+                    return self._json({"error": "Analyze is only on the live dashboard."}, 404)
+                if not self._admin_ok():
+                    return self._json({"error": "admin key required"}, 403)
+                try:
+                    return self._json(an.rescore())
+                except RuntimeError as e:
+                    return self._json({"error": str(e)}, 409)
+            if p in ("/api/analyze/start", "/api/analyze/cancel"):
+                an = getattr(monitor, "analyzer", None)
+                if not an:
+                    return self._json({"error": "Analyze is only on the live dashboard."}, 404)
+                if not self._admin_ok():
+                    return self._json({"error": "admin key required"}, 403)
+                if p.endswith("/cancel"):
+                    return self._json(an.cancel() or {"state": "none"})
+                try:
+                    return self._json(an.start(body.get("from"), body.get("to")))
+                except ValueError as e:
+                    return self._json({"error": str(e)}, 400)
+                except RuntimeError as e:
+                    return self._json({"error": str(e)}, 409)
             if p == "/api/replay/cancel":
                 if not self._admin_ok():
                     return self._json({"error": "admin key required"}, 403)
@@ -1570,6 +1879,17 @@ def make_handler(monitor, config, hub, args, demo=None):
                     return self._json(out)
                 except ValueError as e:
                     return self._json({"error": str(e)}, 400)
+            if p == "/api/board/review":
+                if body.get("verdict") not in ("real", "false"):
+                    return self._json({"error": "verdict must be real or false"}, 400)
+                try:
+                    return self._json(monitor.review_ai_card(body.get("id"), body["verdict"], body.get("by")))
+                except ValueError as e:
+                    return self._json({"error": str(e)}, 404)
+            if p == "/api/learned/toggle":
+                lr = getattr(monitor, "learner", None)
+                r = lr and lr.set_disabled(body.get("id"), bool(body.get("disabled", True)), body.get("by"))
+                return self._json(r or {"error": "unknown rule"}, 200 if r else 404)
             if p == "/api/board/detach":
                 out = monitor.board_fix(body.get("id"), body.get("audio_url"), body.get("to") or None, body.get("by"))
                 return self._json(out or {"error": "couldn't find that line on that call"}, 200 if out else 404)
@@ -1617,7 +1937,8 @@ def make_handler(monitor, config, hub, args, demo=None):
                 hub.publish("ourcalls", monitor.calls_payload())
                 return self._json(out)
             if p == "/api/match":   # try the matcher on arbitrary text from the dashboard
-                return self._json({"hits": monitor.matcher.match(body.get("text", ""))})
+                text = body.get("text", "")
+                return self._json({"hits": monitor.matcher.match(text), "explain": monitor.matcher.explain(text)})
             self._json({"error": "not found"}, 404)
 
     return H
@@ -1669,20 +1990,25 @@ class MLXWhisper:
                                language="en", verbose=None)          # load + warm up
         log("Whisper ready.")
 
-    def _pass(self, audio, prompt, use_prompt):
+    def _pass(self, audio, prompt, use_prompt, rescue=False):
         r = self.mx.transcribe(
             audio, path_or_hf_repo=self.path, language="en", verbose=None,
             condition_on_previous_text=False,
             initial_prompt=(prompt or None) if use_prompt else None,
-            temperature=(0.0, 0.2, 0.4, 0.6),
-            no_speech_threshold=0.6, logprob_threshold=-1.0, compression_ratio_threshold=2.4)
+            temperature=(0.0,) if rescue else (0.0, 0.2, 0.4, 0.6),
+            no_speech_threshold=None if rescue else 0.6, logprob_threshold=None if rescue else -1.0,
+            compression_ratio_threshold=2.4)
         keep = []
         for seg in r.get("segments", []):
             nsp, lp, cr = seg.get("no_speech_prob", 0), seg.get("avg_logprob", 0), seg.get("compression_ratio", 1)
-            if nsp > 0.6 and lp < -0.8:
-                continue
-            if lp < -1.3 or cr > 2.4:
-                continue
+            if rescue:
+                if cr > 2.4 or lp < -1.6:
+                    continue
+            else:
+                if nsp > 0.6 and lp < -0.8:
+                    continue
+                if lp < -1.3 or cr > 2.4:
+                    continue
             keep.append(seg)
         text = " ".join(x["text"].strip() for x in keep).strip()
         weight = sum(max(1, len(x["text"])) for x in keep)
@@ -1690,6 +2016,7 @@ class MLXWhisper:
         return text, conf
 
     def transcribe(self, path, prompt):
+        self.last_rescued = False
         audio = LocalWhisper._decode(path)
         if audio.size < 1600:
             return ""
@@ -1705,6 +2032,10 @@ class MLXWhisper:
                     text, conf = t2, c2
                     if a is plain:
                         ENHANCE_STATS["fallback_used"] += 1
+        if not text:
+            # nothing survived: once more with the no-speech skipping off (short keyups get marked "not speech")
+            t, _c = self._pass(plain if plain is not None else audio, prompt, use_prompt=False, rescue=True)
+            self.last_rescued, text = bool(t), t
         return text
 
 
@@ -1783,6 +2114,7 @@ class ReplayJob:
              "created": self.created, "finished": self.finished,
              "transcribed": sum(1 for r in recs if r["text"]),
              "failed": sum(1 for r in recs if r["error"]),
+             "skipped_short": self.child.status.get("skipped_short", 0),
              "alerts": list(self.child.alerts)}
         if full:
             d["calls"] = recs
@@ -1814,6 +2146,14 @@ class ReplayJob:
             if oldest >= cursor or oldest < self.start_ms:
                 break
             cursor = oldest
+        min_len = getattr(self.monitor.args, "long", None)
+        if min_len is not None:                          # long mode: leave short keyups out of the totals too
+            short = [k for k, c in found.items() if c.get("len") is not None and c["len"] <= min_len]
+            for k in short:
+                del found[k]
+            self.child.status["skipped_short"] = len(short)
+            if short:
+                log(f"Replay {self.tag}: long mode, skipping {len(short)} clips of {min_len:g} s or less")
         return sorted(found.values(), key=lambda c: c["time"])
 
     def run(self, live_first=True):
@@ -1861,7 +2201,8 @@ class ReplayJob:
                f"Window:      {fmt_local(self.start_ms)} -> {fmt_local(self.end_ms)} Eastern",
                f"Status:      {self.state}" + (f" ({self.error})" if self.error else ""),
                f"Calls:       {self.total}  (transcribed {i['transcribed']}, "
-               f"silent/empty {self.done - i['transcribed'] - i['failed']}, failed {i['failed']})",
+               f"silent/empty {self.done - i['transcribed'] - i['failed']}, failed {i['failed']}"
+               + (f", skipped {i['skipped_short']} of {self.monitor.args.long:g} s or less (--long)" if i['skipped_short'] else "") + ")",
                f"Alerts:      {len(alerts)}  (high {sum(a['level'] == 'high' for a in alerts)}, "
                f"medium {sum(a['level'] == 'medium' for a in alerts)})"]
         for a in alerts:
@@ -1882,6 +2223,8 @@ def run_replay(args, config, fetcher):
         raise SystemExit(f"Replay: {e}")
     monitor = Monitor(args, config, Hub(), NullPusher(), fetcher)
     monitor.transcriber = make_transcriber(args)
+    if args.long is not None:
+        log(f"Long mode: only transmissions longer than {args.long:g} s are downloaded and transcribed.")
     log("Audio enhancement: " + ("on (tone removal + noise reduction on noisy clips; --no-enhance to turn off)" if ENHANCE else "off"))
     job = ReplayJob(monitor, start_ms, end_ms)
     job.run(live_first=False)
@@ -1947,6 +2290,8 @@ def main():
                     help="Claude model for reading dispatches: haiku (fast, default), sonnet (smarter, slower)")
     ap.add_argument("--ai-max-per-hour", type=int, default=int(os.environ.get("AI_MAX_PER_HOUR", 60)),
                     help="safety cap on Claude calls per hour")
+    ap.add_argument("--no-ai-grouping", action="store_true", default=os.environ.get("NO_AI_GROUPING") == "1",
+                    help="keep the AI's per-call reading but don't let it re-sort radio into calls every minute")
     ap.add_argument("--claude-path", default=os.environ.get("CLAUDE_PATH"),
                     help="path to the claude command if it isn't on PATH")
     ap.add_argument("--stock-model", action="store_true",
@@ -1955,6 +2300,9 @@ def main():
                     help="turn off the audio enhancement layer (tone removal + noise reduction) before Whisper")
     ap.add_argument("--no-filter", action="store_true",
                     help="show every transcript, even ones that don't look like radio traffic")
+    ap.add_argument("--long", nargs="?", type=float, const=3.0, default=None, metavar="SECONDS",
+                    help="long mode: only download and transcribe transmissions longer than SECONDS (default 3); "
+                         "shorter keyups are skipped entirely. Everything else (alerts, board, AI) runs as normal")
     ap.add_argument("--check", action="store_true",
                     help="just fetch and print the last 3 calls from OpenMHz, then exit (no Whisper, no server)")
     args = ap.parse_args()
@@ -1998,10 +2346,19 @@ def main():
     hub = Hub()
     pusher = Pusher(args)
     monitor = Monitor(args, config, hub, pusher, fetcher)
+    if args.long is not None:
+        log(f"Long mode: only transmissions longer than {args.long:g} s are downloaded and transcribed.")
+    monitor.analyzer = analyze.Analyzer(
+        monitor, lambda fetcher: Monitor(args, config, Hub(), NullPusher(), fetcher, quiet=True), LOG_DIR, log)
+    monitor.analyzer.rescore_if_rules_changed(delay=45.0)    # rules / address data changed since the last start?
     monitor.calllog = CallLog(os.path.join(LOG_DIR, "our-calls.json"))
     monitor.feedback = FeedbackStore(LOG_DIR, download=monitor._download, log=log)
     monitor.geo = Geocoder(os.path.join(LOG_DIR, "geocache.json"), log=log)
     monitor.load_board_fixes()
+    from learn import RuleLearner
+    monitor.learner = RuleLearner(None, LOG_DIR, log)
+    if monitor.learner.active():
+        log(f"Learned call-recognition rules: {len(monitor.learner.active())}")
     if monitor.feedback.fixes:
         log(f"Learned fixes from crew corrections: {len(monitor.feedback.fixes)}")
     if not args.no_ai:
@@ -2009,6 +2366,20 @@ def main():
                                   claude_path=args.claude_path, max_per_hour=args.ai_max_per_hour,
                                   others_getter=monitor.other_calls_for_ai, nearby_getter=monitor.nearby_for_ai)
         log(f"AI dispatch reader: {monitor.ai.status} (model {args.ai_model}, `{monitor.ai.claude or 'claude'}`)")
+        monitor.learner.reader = monitor.ai
+        if not args.no_ai_grouping:
+            from aigroup import CallGrouper
+            monitor.grouper = CallGrouper(monitor.ai, monitor, log, max_per_hour=max(120, args.ai_max_per_hour))
+            log("AI call grouping: on (Claude checks the newest radio against the call cards every ~30 s, "
+                "and every 3 min re-reads the last 20 min for calls the rules missed)")
+            try:
+                with open(os.path.join(LOG_DIR, "training", "ai-found.jsonl")) as f:
+                    for line in f:
+                        r = json.loads(line)
+                        if r.get("verdict") == "false" and r.get("lines"):
+                            monitor.grouper.not_calls.append(r["lines"][0])
+            except (OSError, ValueError):
+                pass
     monitor.start()
 
     if args.demo_port:
@@ -2018,6 +2389,7 @@ def main():
             dm.log_tag = "demo"
             dm.calllog = CallLog(os.path.join(LOG_DIR, "demo-our-calls.json"))
             dm.feedback = monitor.feedback
+            dm.learner = monitor.learner
             dm.geo = monitor.geo
             dm.asker = monitor.ai               # "Ask the radio" in the demo uses the live AI reader
             dm.status.update(transcriber="demo: recorded transcripts", fetcher="demo")

@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analyze · Crimson Dispatch Watch</title>
+<meta name="theme-color" content="#0d1117">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  --bg:#0d1117; --panel:#161b22; --panel2:#1f2630; --line:#2d3540; --grid:#262e39; --text:#e6edf3; --muted:#8b98a8;
+  --crimson:#a51c30; --crimson-2:#ff3b55; --amber:#f0a020; --green:#3fbf7f;
+  --s-calls:#3987e5; --s-harv:#ff6b81;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 "Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+a{color:inherit}
+button,select,input{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+button{cursor:pointer}
+button:hover{border-color:#4a5666}
+button.primary{background:var(--crimson);border-color:var(--crimson)}
+button:disabled{opacity:.5;cursor:default}
+input[type=date]{color-scheme:dark}
+header{position:sticky;top:0;z-index:5;background:rgba(13,17,23,.96);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
+.brand .dot{width:12px;height:12px;border-radius:3px;background:var(--crimson);box-shadow:0 0 0 4px rgba(165,28,48,.25)}
+.brand small{font-weight:500;color:var(--muted)}
+header .sp{margin-left:auto}
+main{max-width:1200px;margin:0 auto;padding:16px;display:grid;gap:16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;min-width:0}
+.card h2{margin:0 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:flex;gap:8px;align-items:center}
+.card h3{margin:14px 0 6px;font-size:14px;font-weight:600}
+.sub{color:var(--muted);font-size:13px;margin:0 0 10px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.row label{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center}
+progress{width:100%;height:8px;margin-top:8px;accent-color:var(--crimson)}
+.prog{font-size:13px;color:var(--muted);margin-top:8px}
+.prog b{color:var(--text)}
+.err{color:#ffb3bf}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.tile .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.tile .v{font-size:28px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums}
+.tile .n{font-size:12px;color:var(--muted)}
+.tile .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:1px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:none;border-radius:0;background:transparent;padding:5px 12px;font-size:13px}
+.seg button.on{background:var(--panel2);color:var(--text);font-weight:600}
+.seg button:not(.on){color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:900px){.two{grid-template-columns:1fr}}
+.chart{width:100%;overflow:hidden}
+.chart svg{display:block;width:100%;height:auto}
+.chart text{fill:var(--muted);font:11px "Inter",sans-serif}
+.legend{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);margin-top:6px}
+.legend .ramp{width:120px;height:10px;border-radius:2px}
+.empty{color:var(--muted);font-size:14px;padding:18px 0}
+#tip{position:fixed;z-index:20;pointer-events:none;background:#0a0e13;border:1px solid var(--line);border-radius:6px;padding:6px 9px;font-size:12px;color:var(--text);box-shadow:0 6px 20px rgba(0,0,0,.4);display:none;max-width:260px}
+#tip .m{color:var(--muted)}
+[data-tip]{cursor:default}
+.cell:hover,.bar:hover{stroke:var(--text);stroke-width:1.5}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:7px 8px;border-bottom:1px solid #222a34;vertical-align:top}
+td.t{font-family:var(--mono);color:var(--muted);white-space:nowrap}
+td.tx{font-family:var(--mono)}
+.lvl{font-size:11px;padding:1px 6px;border-radius:5px;border:1px solid var(--line);white-space:nowrap}
+.lvl.high{border-color:var(--crimson-2);color:#ffb3bf}
+.lvl.medium{border-color:var(--amber);color:#ffc66b}
+.play{padding:3px 9px;font-size:12px}
+.play.on{background:var(--crimson);border-color:var(--crimson)}
+.tablewrap{max-height:520px;overflow:auto}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 10px}
+.filters input[type=search]{flex:1 1 220px;min-width:0}
+.filters select{max-width:220px}
+.chip{display:inline-flex;gap:6px;align-items:center;font-size:12px;padding:3px 4px 3px 10px;border-radius:999px;background:rgba(57,135,229,.15);border:1px solid rgba(57,135,229,.5)}
+.chip button{border:none;background:transparent;padding:0 6px;font-size:13px;line-height:1}
+.dlist .d{border-bottom:1px solid #222a34}
+.dlist .dh{display:grid;grid-template-columns:185px minmax(0,1.2fr) minmax(0,1.2fr) minmax(0,.8fr) 190px;gap:10px;padding:8px 6px;cursor:pointer;align-items:start;font-size:13px}
+.dlist .dh:hover{background:#1b222b}
+.dlist .d.open .dh{background:#1b222b}
+.dlist .when{font-family:var(--mono);color:var(--muted);white-space:nowrap}
+.dlist .what b{font-weight:600}
+.dlist .m{color:var(--muted);font-size:12px}
+.dlist .tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.dlist .tl{padding:4px 6px 12px 195px}
+.dlist .tl .e{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:10px;padding:5px 0;border-top:1px dashed #2a323d;align-items:start}
+.dlist .tl .e .tt{font-family:var(--mono);color:var(--muted);font-size:12px}
+.dlist .tl .e .tx{font-family:var(--mono);font-size:13px}
+.dlist .tl .e.note .tx{color:var(--muted);font-style:italic;font-family:inherit}
+.dlist mark{background:rgba(255,107,129,.3);color:#fff;border-radius:3px;padding:0 2px}
+.acu{font-size:11px;padding:1px 6px;border-radius:5px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.acu.high{color:#ffb3bf;border-color:rgba(255,59,85,.6)}
+.acu.medium{color:#ffc66b;border-color:rgba(240,160,32,.5)}
+.more{display:block;margin:12px auto 0}
+.dbar{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;width:100%;cursor:pointer;border-radius:6px;padding:4px 2px}
+.dbar:hover h2{color:var(--text)}
+.dbar:focus-visible{outline:2px solid var(--s-calls);outline-offset:2px}
+.dbar h2{margin:0}
+.dbar .chev{margin-left:auto;color:var(--muted);font-size:13px;display:flex;gap:6px;align-items:center}
+.dbar .chev i{font-style:normal;display:inline-block;transition:transform .15s}
+#dispatches.open .dbar .chev i{transform:rotate(90deg)}
+#dispatches:not(.open) #dBody{display:none}
+.dq{font-size:12px;padding:3px 9px;white-space:nowrap}
+.acts{display:flex;gap:8px;align-items:center;padding:8px 0 2px;border-top:1px dashed #2a323d;font-size:12px;color:var(--muted)}
+tr.removed td{opacity:.55}
+.rmnote{font-size:11px;color:var(--muted);white-space:nowrap}
+.near{font-size:11px;padding:1px 6px;border-radius:5px;border:1px solid rgba(57,135,229,.55);color:#9cc4f2;white-space:nowrap}
+/* map of Harvard calls (Leaflet + OpenStreetMap; the tiles are darkened to sit in this page, the markers aren't) */
+#map{height:460px;border-radius:8px;border:1px solid var(--line);background:#0a0e13;z-index:0}
+@media (max-width:640px){#map{height:360px}}
+#map .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.85) saturate(.55)}
+#map.leaflet-container{font:13px "Inter",sans-serif;background:#0a0e13}
+#map .leaflet-bar a{background:var(--panel2);color:var(--text);border-color:var(--line)}
+#map .leaflet-control-attribution{background:rgba(13,17,23,.85);color:var(--muted)}
+#map .leaflet-control-attribution a{color:#9ec5f4}
+#map .leaflet-popup-content-wrapper,#map .leaflet-popup-tip{background:var(--panel);color:var(--text);border:1px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.5)}
+#map .leaflet-popup-content{margin:10px 12px;min-width:230px}
+#map a.leaflet-popup-close-button{color:var(--muted)}
+#map .leaflet-tooltip{background:#0a0e13;color:var(--text);border:1px solid var(--line);box-shadow:none}
+#map .leaflet-tooltip-top:before{border-top-color:var(--line)}
+.mp h4{margin:0 0 2px;font-size:14px}
+.mp .m{color:var(--muted);font-size:12px}
+.mp .list{max-height:250px;overflow:auto;margin-top:6px}
+.mp .r{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:12px;align-items:start}
+.mp .w{font-family:var(--mono);color:var(--muted);font-size:11px}
+.mapkey{display:flex;flex-wrap:wrap;gap:14px;align-items:center;font-size:12px;color:var(--muted);margin-top:8px}
+.mapkey i{display:inline-block;width:12px;height:12px;border-radius:50%;border:2px solid #0d1117;vertical-align:-2px;margin-right:5px}
+.mapkey .ring{width:14px;height:14px;border:1.5px dashed #9ec5f4;background:transparent}
+.ok{font-size:11px;padding:1px 6px;border-radius:5px;border:1px solid rgba(63,191,127,.55);color:#9be3bd;white-space:nowrap}
+.dq.yes{border-color:rgba(63,191,127,.55)}
+#conflictTable td.why{color:var(--muted);font-size:12px;min-width:220px}
+.whylist{margin:4px 0 0;padding-left:16px}
+#complaintTable table{font-variant-numeric:tabular-nums}
+#complaintTable th{cursor:pointer;user-select:none}
+#complaintTable th.on{color:var(--text)}
+#complaintTable tr.crow{cursor:pointer}
+#complaintTable tr.crow:hover td{background:#1b222b}
+#complaintTable td.n{text-align:right;white-space:nowrap;width:1%}
+.cbar{height:8px;border-radius:0 4px 4px 0;display:inline-block;vertical-align:middle}
+.whylist li{margin:2px 0;color:var(--text)}
+[data-f]{cursor:pointer}
+@media (max-width:700px){.dlist .dh{grid-template-columns:1fr auto}.dlist .dh .where,.dlist .dh .units{grid-column:1/-1}.dlist .tl{padding-left:6px}}
+@media (max-width:560px){td.tx{min-width:200px}.tablewrap{overflow-x:auto}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="dot"></span>Analyze <small id="tgName">· Pro EMS (TG 1227)</small></div>
+  <a class="sp" href="/"><button>← Dashboard</button></a>
+</header>
+<main>
+  <section class="card">
+    <h2>Analyze a stretch of radio</h2>
+    <p class="sub">Pulls every Pro EMS transmission in the range from OpenMHz a day at a time and runs it through the normal pipeline
+      (the call board and Harvard matching). Clips already transcribed are reused, live traffic always goes first, and everything
+      analyzed is kept, so results add up across runs. Expect roughly a few minutes per day of radio.</p>
+    <div class="row">
+      <label>From <input type="date" id="from"></label>
+      <label>To <input type="date" id="to"></label>
+      <button class="primary" id="btnStart">Analyze</button>
+      <button id="btnCancel" hidden>Cancel</button>
+      <button id="btnRescore" title="Run everything already analyzed through today's Harvard rules, using the transcripts on file (no downloading, no Whisper)">Re-score with current rules</button>
+    </div>
+    <div id="prog" class="prog"></div>
+  </section>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">When calls happen</h2>
+      <div class="row">
+        <label><input type="checkbox" id="incMed"> Count possible Harvard calls too</label>
+        <label title="Leave out calls at Harvard University Health Services (Smith Campus Center, 75 Mount Auburn St)"><input type="checkbox" id="noHuhs"> Leave out calls from HUHS</label>
+        <label title="Only Harvard calls whose place is within a 10-minute walk of Adams House (Russell Hall, 26 Plympton St). Calls whose place couldn't be pinned down are left out."><input type="checkbox" id="incNear"> Only near Harvard College (Harvard calls within a 10-min walk of Adams House)</label>
+        <div class="seg" id="mode"><button data-v="total" class="on">Totals</button><button data-v="avg">Averages</button></div>
+      </div>
+    </div>
+    <p class="sub" id="modeNote" style="margin-top:6px"></p>
+    <div class="two">
+      <div>
+        <h3>All dispatches · day × hour</h3>
+        <div class="chart" id="hmCalls"></div>
+      </div>
+      <div>
+        <h3><span class="hlabel">Harvard calls</span> · day × hour</h3>
+        <div class="chart" id="hmHarv"></div>
+      </div>
+    </div>
+    <div class="two">
+      <div><h3>All dispatches · by hour of day</h3><div class="chart" id="hrCalls"></div></div>
+      <div><h3><span class="hlabel">Harvard calls</span> · by hour of day</h3><div class="chart" id="hrHarv"></div></div>
+    </div>
+    <div class="two">
+      <div><h3>All dispatches · by day of week</h3><div class="chart" id="dwCalls"></div></div>
+      <div><h3><span class="hlabel">Harvard calls</span> · by day of week</h3><div class="chart" id="dwHarv"></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Day by day</h2>
+    <h3>All dispatches per day</h3><div class="chart" id="dayCalls"></div>
+    <h3><span class="hlabel">Harvard calls</span> per day</h3><div class="chart" id="dayHarv"></div>
+  </section>
+
+  <section class="card" id="mapCard">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0;display:block">Where <span class="hlabel">Harvard calls</span> happen <span id="mapCount" style="text-transform:none;letter-spacing:0"></span></h2>
+      <span id="mapWhen"></span>
+    </div>
+    <p class="sub" style="margin:6px 0 8px">Each circle is one place, sized by how many calls happened there: the Harvard address or corner the call
+      named, else the Harvard building it named, else its dispatch's address. Hover for the place, click for its calls (▶ plays the radio).
+      The map follows the checkboxes above and any chart or complaint you clicked.</p>
+    <div id="map" role="region" aria-label="Map of Harvard calls"></div>
+    <div class="mapkey" id="mapKey"></div>
+  </section>
+
+  <section class="card" id="complaintsCard">
+    <h2>Chief complaints</h2>
+    <p class="sub" style="margin:6px 0 8px">What each call was for, as heard on the radio (the dispatcher's complaint; Whisper's usual garbles like
+      "safe person" = sick person are understood). The Harvard column follows the checkboxes above. Click a complaint to list those dispatches;
+      click a column heading to sort.</p>
+    <div class="tablewrap" id="complaintTable"></div>
+  </section>
+
+  <section class="card" id="dispatches">
+    <button class="dbar" id="dToggle" aria-expanded="false" aria-controls="dBody">
+      <h2>Dispatches <span id="dCount" style="text-transform:none;letter-spacing:0"></span></h2>
+      <span class="chev"><span id="dToggleTxt">Show all</span><i>▸</i></span>
+    </button>
+    <div id="dBody">
+    <p class="sub" style="margin:6px 0 0">Every call the board pieced together from the radio. Click one to see and hear its traffic. Clicking a cell or bar in an “All dispatches” chart, or a complaint, shows exactly those calls; a Harvard chart opens the Harvard calls list below.</p>
+    <div class="filters">
+      <input type="search" id="dq" placeholder="Search address, complaint, unit or anything said…">
+      <select id="dComplaint"><option value="">All complaints</option></select>
+      <select id="dHarv"><option value="all">All dispatches</option><option value="harvard">Harvard only</option><option value="possible">Harvard incl. possible</option><option value="near">Harvard, within a 10-min walk of Adams House</option></select>
+      <select id="dSort"><option value="new">Newest first</option><option value="old">Oldest first</option><option value="complaint">Chief complaint (A–Z)</option></select>
+      <span id="dWhen"></span>
+      <button id="dCsv" title="Download the filtered list as a spreadsheet">Download CSV</button>
+    </div>
+    <div class="dlist" id="dList"></div>
+    </div>
+  </section>
+
+  <section class="card" id="conflictsCard" hidden>
+    <h2>Your rulings vs. the current rules <span id="conflictCount" style="text-transform:none;letter-spacing:0"></span></h2>
+    <p class="sub" style="margin:6px 0 8px">These calls have a ruling of yours that the <b>current</b> rules disagree with: each call is checked again with today's
+      rules every time this page loads (for example, "private response for Harvard" and Harvard-owned buildings now always count). Each row shows what today's rules decide and why. <b>Keep my ruling</b> keeps yours and takes the call off this list;
+      <b>Follow the new rules</b> removes your ruling and lets today's rules decide.</p>
+    <div class="tablewrap" id="conflictTable"></div>
+  </section>
+
+  <section class="card" id="harvSection">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">Harvard calls <span id="harvCount" style="text-transform:none;letter-spacing:0"></span> <span id="harvWhen" style="text-transform:none;letter-spacing:0"></span></h2>
+      <span class="row" style="gap:12px"><label class="rmnote">Sort <select id="hSort" style="font-size:12px;padding:3px 6px"><option value="new">Newest first</option><option value="complaint">Chief complaint</option></select></label>
+      <label class="rmnote"><input type="checkbox" id="showRemoved"> Show removed <span id="rmCount"></span></label></span>
+    </div>
+    <p class="sub" style="margin:6px 0 8px">Press <b>Not Harvard</b> on anything that isn't really a Harvard call: it leaves every Harvard count and chart, and its dispatch loses the Harvard tag. Press <b>Harvard ✓</b> to confirm one (a confirmed “possible” call counts as Harvard), or open any dispatch below and press <b>Mark as Harvard</b> for one the matcher missed. Turn on “Show removed” to put one back.</p>
+    <div class="tablewrap" id="harvTable"></div>
+  </section>
+</main>
+<div id="tip"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const store = {
+    get(k, d){ try { const v = localStorage.getItem("analyze." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+    set(k, v){ try { localStorage.setItem("analyze." + k, JSON.stringify(v)); } catch {} },
+  };
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const DAYS_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const hourLabel = h => h === 0 ? "12a" : h < 12 ? h + "a" : h === 12 ? "12p" : (h - 12) + "p";
+  const hourRange = h => `${hourLabel(h)}–${hourLabel((h + 1) % 24)}`;
+  const fmtN = (v, avg) => avg ? (v >= 10 ? v.toFixed(1) : v >= 1 ? v.toFixed(2) : v.toFixed(2)) : String(Math.round(v));
+
+  // ---- Eastern-time bucketing (the radio's own clock, whatever this device's time zone)
+  const fmt = new Intl.DateTimeFormat("en-US", {timeZone: "America/New_York", weekday: "short", hour: "numeric",
+    hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit"});
+  const DOW = {Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6};
+  function parts(ms){
+    const o = {}; for (const p of fmt.formatToParts(new Date(ms))) o[p.type] = p.value;
+    return {dow: DOW[o.weekday], hour: +o.hour % 24, day: `${o.year}-${o.month}-${o.day}`};
+  }
+  const fmtWhen = ms => new Date(ms).toLocaleString([], {timeZone: "America/New_York", weekday: "short", month: "short",
+    day: "numeric", hour: "numeric", minute: "2-digit"});
+
+  // ---- state
+  let data = null, job = null, mode = store.get("mode", "total"), pollT = null;
+  $("#incMed").checked = store.get("incMed", false);
+  const today = new Date(), ymd = d => d.toLocaleDateString("en-CA");
+  $("#to").value = store.get("to", ymd(new Date(today - 864e5)));
+  $("#from").value = store.get("from", ymd(new Date(today - 7 * 864e5)));
+
+  // ---- aggregation
+  const harvLabel = () => $("#incNear").checked ? "Harvard College-area calls" : "Harvard calls";
+  function aggregate(){
+    const cov = Array.from({length: 7}, () => new Float64Array(24));   // hours covered per weekday × hour
+    const covDays = new Set(), emptyDays = new Set();
+    // a day with no dispatches at all is a gap in the feed, not a quiet day: it's left out of everything
+    const active = new Set(data.calls.map(c => parts(c.t).day));
+    let covHours = 0;
+    for (const [a, b] of data.coverage) {
+      for (let h = Math.floor(a / 36e5) * 36e5; h < b; h += 36e5) {
+        const ov = (Math.min(b, h + 36e5) - Math.max(a, h)) / 36e5;
+        if (ov <= 0) continue;
+        const p = parts(h);
+        if (!active.has(p.day)) { emptyDays.add(p.day); continue; }
+        cov[p.dow][p.hour] += ov; covHours += ov; covDays.add(p.day);
+      }
+    }
+    let harv = data.harvard.filter(a => !a.removed && (a.level === "high" || $("#incMed").checked) && active.has(parts(a.t).day));
+    let unplaced = 0, huhsOut = 0;
+    if ($("#noHuhs").checked) {                  // rule out calls from Harvard University Health Services
+      huhsOut = harv.filter(a => a.huhs).length;
+      harv = harv.filter(a => !a.huhs);
+    }
+    if ($("#incNear").checked) {                 // restrict to the Harvard College area
+      unplaced = harv.filter(a => a.walk_min == null).length;
+      harv = harv.filter(a => a.walk_min != null && a.walk_min <= (data.near_minutes || 10));
+    }
+    const bin = list => {
+      const grid = Array.from({length: 7}, () => new Float64Array(24)), byDay = new Map();
+      for (const x of list) { const p = parts(x.t); grid[p.dow][p.hour]++; byDay.set(p.day, (byDay.get(p.day) || 0) + 1); }
+      return {grid, byDay};
+    };
+    return {cov, covHours, covDays: [...covDays].sort(), emptyDays: emptyDays.size, harv, unplaced, huhsOut,
+            calls: bin(data.calls), harvB: bin(harv)};
+  }
+
+  // ---- tooltip
+  const tip = $("#tip");
+  document.addEventListener("mousemove", e => {
+    const el = e.target.closest("[data-tip]");
+    if (!el) { tip.style.display = "none"; return; }
+    tip.innerHTML = el.dataset.tip; tip.style.display = "block";
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.min(window.innerWidth - w - 8, e.clientX + 12) + "px";
+    tip.style.top = (e.clientY + h + 16 > window.innerHeight ? e.clientY - h - 12 : e.clientY + 14) + "px";
+  });
+  document.addEventListener("scroll", () => tip.style.display = "none", true);
+
+  // ---- color: one hue per measure, dim (near zero, recedes to the surface) -> bright
+  const RAMPS = {calls: ["#16304f", "#9ec5f4"], harv: ["#3d1720", "#ffb3bf"]};
+  const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  function ramp(which, f){
+    const [a, b] = RAMPS[which].map(hex), g = Math.pow(f, 0.75);
+    return "rgb(" + a.map((v, i) => Math.round(v + (b[i] - v) * g)).join(",") + ")";
+  }
+
+  // ---- charts (inline SVG)
+  function heatmap(el, grid, cov, which, noun){
+    const avg = mode === "avg", W = Math.max(300, el.clientWidth || 560), L = 34, T = 18, cw = (W - L - 4) / 24, ch = 22, H = T + ch * 7 + 4;
+    const val = (d, h) => avg ? (cov[d][h] ? grid[d][h] / cov[d][h] : null) : grid[d][h];
+    let max = 0; for (let d = 0; d < 7; d++) for (let h = 0; h < 24; h++) { const v = val(d, h); if (v > max) max = v; }
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(noun)} by day of week and hour">`;
+    for (let h = 0; h < 24; h += 3) s += `<text x="${L + h * cw + cw / 2}" y="12" text-anchor="middle">${hourLabel(h)}</text>`;
+    for (let d = 0; d < 7; d++) {
+      s += `<text x="${L - 6}" y="${T + d * ch + ch / 2 + 4}" text-anchor="end">${DAYS[d]}</text>`;
+      for (let h = 0; h < 24; h++) {
+        const v = val(d, h), n = grid[d][h], c = cov[d][h];
+        const fill = !c && !n ? "#12171e" : !v ? "#1f2630" : ramp(which, max ? v / max : 0);
+        const t = `<b>${DAYS_LONG[d]} ${hourRange(h)}</b><br>${n} ${noun}${c ? `<br><span class="m">${(n / c).toFixed(2)} per hour on average · ${c.toFixed(0)} h covered</span>` : `<br><span class="m">not analyzed yet</span>`}`;
+        s += `<rect class="cell" data-fk="${which}" data-f='{"dow":${d},"hour":${h}}' x="${L + h * cw + 1}" y="${T + d * ch + 1}" width="${cw - 2}" height="${ch - 2}" rx="3" fill="${fill}" data-tip="${esc(t)}"/>`;
+      }
+    }
+    s += "</svg>";
+    el.innerHTML = s + `<div class="legend">${avg ? "0" : "0"}<span class="ramp" style="background:linear-gradient(90deg,${ramp(which, 0)},${ramp(which, .5)},${ramp(which, 1)})"></span>${fmtN(max, avg)}${avg ? " per hour" : ""}<span style="margin-left:10px;display:inline-block;width:10px;height:10px;border-radius:2px;background:#12171e;border:1px solid var(--line)"></span> not analyzed</div>`;
+  }
+
+  function bars(el, items, which, noun){
+    // items: [{label, tick, v, tip}]
+    const W = Math.max(300, el.clientWidth || 560), L = 40, R = 6, T = 10, B = 20, H = 150, n = items.length, pw = (W - L - R) / n;
+    const max = Math.max(0, ...items.map(i => i.v ?? 0));
+    const nice = niceMax(max), y = v => T + (H - T - B) * (1 - v / nice);
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(noun)}">`;
+    for (const g of [0, .5, 1]) {
+      const gv = nice * g, yy = y(gv);
+      s += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="var(--grid)" stroke-width="1"/>`;
+      s += `<text x="${L - 6}" y="${yy + 4}" text-anchor="end">${fmtN(gv, mode === "avg" && nice < 20)}</text>`;
+    }
+    const color = which === "calls" ? "var(--s-calls)" : "var(--s-harv)", bw = Math.max(1, Math.min(28, pw - 2));
+    items.forEach((it, i) => {
+      const x = L + i * pw + (pw - bw) / 2, v = it.v ?? 0, top = y(v), h = Math.max(0, y(0) - top);
+      // hit target is the whole column, bigger than the bar
+      const f = it.f ? ` data-fk="${which}" data-f='${JSON.stringify(it.f)}'` : "";
+      s += `<rect x="${L + i * pw}" y="${T}" width="${pw}" height="${H - T - B}" fill="transparent"${f} data-tip="${esc(it.tip)}"/>`;
+      if (h > 0) {
+        const r = Math.min(4, bw / 2, h);
+        s += `<path class="bar" d="M${x},${y(0)} V${top + r} q0,-${r} ${r},-${r} H${x + bw - r} q${r},0 ${r},${r} V${y(0)} Z" fill="${color}"${f} data-tip="${esc(it.tip)}"/>`;
+      }
+      if (it.tick) s += `<text x="${L + i * pw + pw / 2}" y="${H - 5}" text-anchor="middle">${esc(it.tick)}</text>`;
+    });
+    s += `<line x1="${L}" x2="${W - R}" y1="${y(0)}" y2="${y(0)}" stroke="var(--line)"/></svg>`;
+    el.innerHTML = s;
+  }
+  function niceMax(v){
+    if (v <= 0) return 1;
+    const p = Math.pow(10, Math.floor(Math.log10(v))), m = v / p;
+    return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
+  }
+
+  function render(){
+    if (!data) return;
+    const A = aggregate(), avg = mode === "avg";
+    document.querySelectorAll(".hlabel").forEach(el => el.textContent = harvLabel());
+    document.querySelectorAll("#mode button").forEach(b => b.classList.toggle("on", b.dataset.v === mode));
+    $("#modeNote").textContent = avg
+      ? "Averages divide by the hours actually analyzed, so uneven coverage (say, three Mondays but one Tuesday) doesn't skew the picture. Day × hour and hour-of-day: calls per hour. Day of week: calls per day."
+      : "Totals: every call in the analyzed time. If some days were analyzed more often than others, switch to Averages.";
+    const nH = A.harv.length, nC = data.calls.length, days = A.covHours / 24;
+    $("#tiles").innerHTML = [
+      ["Dispatches", nC, `${days ? (nC / days).toFixed(1) : "–"} per day`, "var(--s-calls)"],
+      [harvLabel(), nH, `${days ? (nH / days * 7).toFixed(1) : "–"} per week${$("#incMed").checked ? " · incl. possible" : ""}` +
+        ($("#incNear").checked ? ` · within a 10-min walk of Adams House${A.unplaced ? ` (${A.unplaced} Harvard call${A.unplaced === 1 ? "" : "s"} with no place left out)` : ""}` : "") +
+        ($("#noHuhs").checked ? ` · ${A.huhsOut} HUHS call${A.huhsOut === 1 ? "" : "s"} left out` : ""), "var(--s-harv)"],
+      ["Harvard share", nC ? (100 * nH / nC).toFixed(1) + "%" : "–", "of dispatches", null],
+      ["Time analyzed", days >= 1 ? days.toFixed(1) + " days" : A.covHours.toFixed(1) + " h", `${data.transmissions.toLocaleString()} transmissions` +
+        (A.emptyDays ? ` · ${A.emptyDays} day${A.emptyDays === 1 ? "" : "s"} with no dispatches left out (feed gaps)` : ""), null],
+    ].map(([k, v, n, c]) => `<div class="tile"><div class="k">${c ? `<span class="sw" style="background:${c}"></span>` : ""}${k}</div><div class="v">${typeof v === "number" ? v.toLocaleString() : v}</div><div class="n">${n}</div></div>`).join("");
+
+    if (!A.covHours) {
+      for (const id of ["hmCalls", "hmHarv", "hrCalls", "hrHarv", "dwCalls", "dwHarv", "dayCalls", "dayHarv"])
+        $("#" + id).innerHTML = `<div class="empty">Nothing analyzed yet. Pick a range above and press Analyze.</div>`;
+    } else {
+      heatmap($("#hmCalls"), A.calls.grid, A.cov, "calls", "dispatches");
+      heatmap($("#hmHarv"), A.harvB.grid, A.cov, "harv", "Harvard calls");
+      for (const [key, B, noun, which] of [["Calls", A.calls, "dispatches", "calls"], ["Harv", A.harvB, "Harvard calls", "harv"]]) {
+        bars($("#hr" + key), Array.from({length: 24}, (_, h) => {
+          let n = 0, c = 0; for (let d = 0; d < 7; d++) { n += B.grid[d][h]; c += A.cov[d][h]; }
+          const v = avg ? (c ? n / c : 0) : n;
+          return {f: {hour: h}, tick: h % 3 ? "" : hourLabel(h), v, tip: `<b>${hourRange(h)}</b><br>${n} ${noun}${c ? `<br><span class="m">${(n / c).toFixed(2)} per hour on average over ${Math.round(c)} days</span>` : ""}`};
+        }), which, noun + " by hour");
+        bars($("#dw" + key), DAYS.map((name, d) => {
+          let n = 0, c = 0; for (let h = 0; h < 24; h++) { n += B.grid[d][h]; c += A.cov[d][h]; }
+          const v = avg ? (c ? n / (c / 24) : 0) : n;
+          return {f: {dow: d}, tick: name, v, tip: `<b>${DAYS_LONG[d]}</b><br>${n} ${noun}${c ? `<br><span class="m">${(n / (c / 24)).toFixed(1)} per day on average · ${(c / 24).toFixed(1)} days covered</span>` : `<br><span class="m">not analyzed yet</span>`}`};
+        }), which, noun + " by weekday");
+        const dl = A.covDays, step = Math.max(1, Math.ceil(dl.length / Math.max(4, Math.floor(($("#day" + key).clientWidth || 560) / 70))));
+        bars($("#day" + key), dl.map((day, i) => {
+          const n = B.byDay.get(day) || 0, d = new Date(day + "T12:00:00");
+          const lab = d.toLocaleDateString([], {month: "short", day: "numeric"});
+          return {f: {day}, tick: i % step ? "" : lab, v: n, tip: `<b>${d.toLocaleDateString([], {weekday: "long", month: "short", day: "numeric"})}</b><br>${n} ${noun}`};
+        }), which, noun + " per day");
+      }
+    }
+
+    renderDispatches();
+    renderComplaints(A);
+    renderConflicts();
+    const removed = data.harvard.filter(a => a.removed && (a.level === "high" || $("#incMed").checked));
+    $("#rmCount").textContent = removed.length ? `(${removed.length})` : "";
+    let rows = ($("#showRemoved").checked ? [...A.harv, ...removed] : A.harv.slice()).sort((a, b) => b.t - a.t);
+    const hf = [];
+    if (hWhen) { rows = rows.filter(a => Object.entries(hWhen).every(([k, v]) => parts(a.t)[k] === v)); hf.push(whenLabel(hWhen)); }
+    if (hComplaint) { rows = rows.filter(a => (complaintOf(a) || "(not heard)") === hComplaint); hf.push(hComplaint); }
+    renderMap(A.harv.filter(a => (!hWhen || Object.entries(hWhen).every(([k, v]) => parts(a.t)[k] === v)) &&
+      (!hComplaint || (complaintOf(a) || "(not heard)") === hComplaint)), hf, nH);
+    $("#harvCount").textContent = hf.length ? `· ${rows.length} of ${nH}` : (nH ? `· ${nH}` : "");
+    $("#harvWhen").innerHTML = hf.length ? `<span class="chip">${esc(hf.join(" · "))}<button id="harvWhenX" title="Show all Harvard calls">✕</button></span>` : "";
+    if ($("#hSort").value === "complaint")
+      rows.sort((a, b) => (!complaintOf(a)) - (!complaintOf(b)) || (complaintOf(a) || "").localeCompare(complaintOf(b) || "") || b.t - a.t);
+    $("#harvTable").innerHTML = rows.length ? `<table><thead><tr><th>When</th><th>Level</th><th>Complaint</th><th>Matched</th><th>What was said</th><th></th></tr></thead><tbody>` +
+      rows.map(a => `<tr class="${a.removed ? "removed" : ""}"><td class="t">${esc(fmtWhen(a.t))}</td>
+        <td>${a.confirmed ? `<span class="ok">Harvard ✓</span>` : `<span class="lvl ${a.level}">${a.level === "high" ? "Harvard" : "possible"}</span>`}${a.walk_min != null ? `<div class="m" style="margin-top:3px;font-size:11px;color:var(--muted)">${a.walk_min} min from Adams</div>` : ""}</td>
+        <td>${complaintOf(a) ? esc(complaintOf(a)) : `<span class="rmnote">not heard</span>`}</td>
+        <td>${esc(a.terms.join(", "))}</td><td class="tx">${esc(a.text)}</td>
+        <td style="white-space:nowrap">${a.audio_url ? `<button class="play" data-audio="${esc(a.audio_url)}">▶</button> ` : ""}${alertActions(a)}</td></tr>`).join("") + `</tbody></table>`
+      : `<div class="empty">No Harvard calls in the analyzed time${$("#incMed").checked ? "" : " (tick “Count possible Harvard calls too” to include the uncertain ones)"}.</div>`;
+  }
+
+  // ---- map of Harvard calls (Leaflet + OpenStreetMap tiles)
+  const ADAMS = [42.37182, -71.116627], NEAR_RING_M = 630;    // round(metres / 60) <= 10 min, as walk_minutes() counts
+  let map = null, mapLayer = null, mapFit = null;
+  function renderMap(list, hf, nH){
+    const el = $("#map");
+    if (!window.L) {
+      el.innerHTML = `<div class="empty" style="padding:18px">The map couldn't load: it needs internet access for Leaflet and the OpenStreetMap tiles.</div>`;
+      return;
+    }
+    const origin = data.near_origin || ADAMS;
+    if (!map) {
+      map = L.map(el, {scrollWheelZoom: false, zoomSnap: 0.5}).setView(origin, 15);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(map);
+      L.circle(origin, {radius: NEAR_RING_M, color: "#9ec5f4", weight: 1.5, opacity: .8, dashArray: "5 6", fillOpacity: .04,
+        interactive: false}).addTo(map);
+      L.circleMarker(origin, {radius: 5, color: "#0d1117", weight: 2, fillColor: "#9ec5f4", fillOpacity: 1})
+        .bindTooltip("Adams House (Russell Hall, 26 Plympton St)", {direction: "top", offset: [0, -6]}).addTo(map);
+      mapLayer = L.layerGroup().addTo(map);
+      el.addEventListener("click", () => map.scrollWheelZoom.enable());        // wheel-zoom once the map is clicked,
+      el.addEventListener("mouseleave", () => map.scrollWheelZoom.disable());  // so scrolling the page doesn't zoom it
+    }
+    mapLayer.clearLayers();
+    // one circle per place: calls within ~25 m are one place ("75 Mount Auburn St" and "Harvard University Health
+    // Services" are the same building); it's labelled by the name most of its calls used
+    const gs = [];
+    let unplaced = 0;
+    const near = (g, p) => Math.hypot((g.lat - p[0]) * 111000, (g.lon - p[1]) * 82000) < 25;
+    for (const a of list.slice().sort((x, y) => x.t - y.t)) {
+      if (!a.point) { unplaced++; continue; }
+      let g = gs.find(g => near(g, a.point));
+      if (!g) gs.push(g = {lat: a.point[0], lon: a.point[1], names: new Map(), calls: []});
+      g.calls.push(a);
+      g.names.set(a.point[2], (g.names.get(a.point[2]) || 0) + 1);
+    }
+    for (const g of gs) g.place = [...g.names].sort((x, y) => y[1] - x[1])[0][0];
+    // biggest first, so the small circles are drawn on top and stay clickable
+    gs.sort((x, y) => y.calls.length - x.calls.length);
+    for (const g of gs) {
+      const n = g.calls.length, high = g.calls.some(a => a.level === "high" || a.confirmed), r = 6 + 3.2 * Math.sqrt(n - 1);
+      L.circleMarker([g.lat, g.lon], {radius: r, color: "#0d1117", weight: 2, fillColor: high ? "#ff6b81" : "#f0a020", fillOpacity: .88})
+        .bindTooltip(`<b>${esc(g.place)}</b> · ${n} call${n === 1 ? "" : "s"}`, {direction: "top", offset: [0, -r]})
+        .bindPopup(() => mapPopup(g), {maxWidth: 340})
+        .addTo(mapLayer);
+    }
+    const placed = list.length - unplaced;
+    $("#mapCount").textContent = list.length ? `· ${placed} call${placed === 1 ? "" : "s"} at ${gs.length} place${gs.length === 1 ? "" : "s"}` : "";
+    $("#mapWhen").innerHTML = hf.length ? `<span class="chip">${esc(hf.join(" · "))} · ${list.length} of ${nH}<button id="mapWhenX" title="Show all Harvard calls">✕</button></span>` : "";
+    $("#mapKey").innerHTML = `<span><i style="background:#ff6b81"></i>Harvard call</span>` +
+      ($("#incMed").checked ? `<span><i style="background:#f0a020"></i>possible only</span>` : "") +
+      `<span>bigger circle = more calls at that place</span><span><i class="ring"></i>${data.near_minutes || 10}-min walk from Adams House</span>` +
+      (unplaced ? `<span>${unplaced} call${unplaced === 1 ? "" : "s"} not on the map: no place named (e.g. "HUPD requesting" with no address)</span>` : "");
+    // zoom to the calls when what's shown changes (not on every refresh while an analysis runs)
+    const fitKey = JSON.stringify([$("#incMed").checked, $("#noHuhs").checked, $("#incNear").checked, hf, gs.length > 0]);
+    if (fitKey !== mapFit) {
+      mapFit = fitKey;
+      if (gs.length) map.fitBounds(L.latLngBounds(gs.map(g => [g.lat, g.lon])).pad(0.12), {maxZoom: 17});
+      else map.setView(origin, 15);
+    }
+  }
+  function mapPopup(g){
+    const calls = g.calls.slice().sort((a, b) => b.t - a.t), wm = calls.find(a => a.walk_min != null);
+    return `<div class="mp"><h4>${esc(g.place)}</h4><div class="m">${calls.length} call${calls.length === 1 ? "" : "s"}` +
+      `${wm ? ` · ${wm.walk_min} min walk from Adams House` : ""}</div><div class="list">` +
+      calls.map(a => `<div class="r"><div><div class="w">${esc(fmtWhen(a.t))}</div>` +
+        `<div style="margin:2px 0">${a.confirmed ? `<span class="ok">Harvard ✓</span>` : `<span class="lvl ${a.level}">${a.level === "high" ? "Harvard" : "possible"}</span>`}` +
+        ` ${esc(complaintOf(a) || "")}</div><div class="m">${esc(a.terms.join(", "))}</div></div>` +
+        `<div>${a.audio_url ? `<button class="play${playing === a.audio_url ? " on" : ""}" data-audio="${esc(a.audio_url)}">▶</button>` : ""}</div></div>`).join("") +
+      `</div></div>`;
+  }
+
+  // ---- chief complaints
+  let callById = new Map(), cSort = store.get("cSort", "all"), hWhen = null, hComplaint = null;
+  const complaintOf = a => (callById.get(a.dispatch_id) || {}).complaint || null;
+  function renderComplaints(A){
+    callById = new Map(data.calls.map(c => [c.id, c]));
+    const NONE = "(not heard)";
+    const all = new Map(), harv = new Map();
+    for (const c of data.calls) { const k = c.complaint || NONE; all.set(k, (all.get(k) || 0) + 1); }
+    for (const a of A.harv) { const k = complaintOf(a) || NONE; harv.set(k, (harv.get(k) || 0) + 1); }
+    const nAll = data.calls.length, nH = A.harv.length;
+    const keys = [...new Set([...all.keys(), ...harv.keys()])];
+    keys.sort((x, y) => (x === NONE) - (y === NONE) || (cSort === "name" ? x.localeCompare(y)
+      : cSort === "harv" ? (harv.get(y) || 0) - (harv.get(x) || 0) || (all.get(y) || 0) - (all.get(x) || 0)
+      : (all.get(y) || 0) - (all.get(x) || 0) || (harv.get(y) || 0) - (harv.get(x) || 0)));
+    const maxA = Math.max(1, ...[...all.values()]), maxH = Math.max(1, ...[...harv.values()]);
+    const pct = (n, d) => d ? (100 * n / d).toFixed(n && 100 * n / d < 1 ? 1 : 0) + "%" : "–";
+    const th = (key, label) => `<th data-csort="${key}" class="${cSort === key ? "on" : ""}">${label}${cSort === key ? " ▾" : ""}</th>`;
+    $("#complaintTable").innerHTML = nAll ? `<table><thead><tr>${th("name", "Complaint")}${th("all", "All dispatches")}<th></th>${th("harv", esc(harvLabel()))}<th></th></tr></thead><tbody>` +
+      keys.map(k => {
+        const a = all.get(k) || 0, h = harv.get(k) || 0;
+        return `<tr class="crow" data-complaint="${esc(k)}"><td>${k === NONE ? `<span class="rmnote">${NONE}</span>` : esc(k)}</td>
+          <td class="n">${a} <span class="rmnote">${pct(a, nAll)}</span></td>
+          <td style="width:22%"><span class="cbar" style="width:${Math.round(100 * a / maxA)}%;background:var(--s-calls)"></span></td>
+          <td class="n" data-hc="${esc(k)}" title="Show these Harvard calls">${h} <span class="rmnote">${pct(h, nH)}</span></td>
+          <td style="width:22%"><span class="cbar" style="width:${Math.round(100 * h / maxH)}%;background:var(--s-harv)"></span></td></tr>`;
+      }).join("") + `</tbody></table>` : `<div class="empty">No dispatches analyzed yet.</div>`;
+  }
+  document.addEventListener("click", e => {
+    const th = e.target.closest("[data-csort]");
+    if (th) { cSort = th.dataset.csort; store.set("cSort", cSort); return render(); }
+    const hc = e.target.closest("[data-hc]");
+    if (hc) { hWhen = null; hComplaint = hc.dataset.hc; render(); return $("#harvSection").scrollIntoView({behavior: "smooth", block: "start"}); }
+    const row = e.target.closest("tr.crow");
+    if (row) {
+      const k = row.dataset.complaint;
+      showDispatches({complaint: k === "(not heard)" ? "__none" : k});
+    }
+  });
+
+  function renderConflicts(){
+    const list = data.conflicts || [];
+    $("#conflictsCard").hidden = !list.length;
+    $("#conflictCount").textContent = list.length ? `· ${list.length}` : "";
+    if (!list.length) return;
+    $("#conflictTable").innerHTML = `<table><thead><tr><th>When</th><th>You said</th><th>The rules say</th><th>What was said</th><th></th></tr></thead><tbody>` +
+      list.map(x => `<tr><td class="t">${esc(fmtWhen(x.t))}</td>
+        <td>${x.ruling === "not" ? `<span class="rmnote">Not Harvard</span>` : `<span class="ok">Harvard ✓</span>`}</td>
+        <td class="why">${x.rules === "high" ? `<span class="lvl high">Harvard</span>` : x.rules === "possible" ? `<span class="lvl medium">possible only</span>` : `<span class="rmnote">not a Harvard call</span>`}
+          <ul class="whylist">${(x.rules_why || x.terms || []).map(r => `<li>${esc(r)}</li>`).join("")}</ul></td>
+        <td class="tx">${esc(x.text)}</td>
+        <td style="white-space:nowrap">${x.audio_url ? `<button class="play" data-audio="${esc(x.audio_url)}">▶</button> ` : ""}${rb(x.kind, x.id, "keep", "Keep my ruling", "Keep your ruling and take this call off the list")} ${rb(x.kind, x.id, "clear", "Follow the new rules: " + (x.rules === "high" ? "Harvard" : x.rules === "possible" ? "possible only" : "not Harvard"), "Remove your ruling: today's rules decide")}</td></tr>`).join("") +
+      `</tbody></table>`;
+  }
+
+  // ---- crew rulings: not Harvard / Harvard / clear
+  const rb = (kind, id, ruling, label, title, cls = "") =>
+    `<button class="dq ${cls}" data-dq="${kind}" data-id="${esc(id)}" data-ruling="${ruling}"${title ? ` title="${esc(title)}"` : ""}>${label}</button>`;
+  function alertActions(a){
+    const [kind, id] = a.manual ? ["dispatches", a.dispatch_id] : ["alerts", a.id];   // crew-marked: the ruling lives on the dispatch
+    if (a.removed) return rb(kind, id, "clear", "Put back");
+    if (a.confirmed) return rb(kind, id, "clear", "Undo", "Undo the Harvard confirmation");
+    return rb(kind, id, "harvard", "Harvard ✓", "Yes, this is a Harvard call", "yes") + " " +
+           rb(kind, id, "not", "Not Harvard", "Not really a Harvard call: remove it from the Harvard counts");
+  }
+  function dispatchActions(c){
+    const terms = c.harvard_terms.length ? ` (${esc(c.harvard_terms.join(", "))})` : "";
+    const addr = /^\d+[A-Za-z]?\s+\S/.test(c.where || "") ? c.where : null;
+    const always = addr ? `<span style="margin-left:auto;display:inline-flex;gap:6px;flex-wrap:wrap">Every call at ${esc(addr)}:
+      <button class="dq yes" data-place="${esc(addr)}" data-harvard="1" title="Add to Settings > Harvard places: always a Harvard call">Always Harvard</button>
+      <button class="dq" data-place="${esc(addr)}" data-harvard="0" title="Add to Settings > Harvard places: never a Harvard call (unless HUPD / private response for Harvard)">Never Harvard</button></span>` : "";
+    return dispatchActionsCore(c, terms) + always;
+  }
+  function dispatchActionsCore(c, terms){
+    if (c.removed) return `Ruled out as a Harvard call. ${rb("dispatches", c.id, "clear", "Put back")}`;
+    if (c.confirmed) return `Marked as a Harvard call by the crew. ${rb("dispatches", c.id, "clear", "Undo")}`;
+    if (c.harvard) return `Flagged as ${c.harvard === "high" ? "a Harvard call" : "a possible Harvard call"}${terms}. ` +
+      rb("dispatches", c.id, "harvard", "Harvard ✓", "Yes, this is a Harvard call", "yes") + " " + rb("dispatches", c.id, "not", "Not a Harvard call");
+    return `Not flagged as Harvard. ${rb("dispatches", c.id, "harvard", "Mark as Harvard", "The matcher missed this one: count it as a Harvard call", "yes")}`;
+  }
+
+  // ---- dispatch list
+  const flt = {q: "", complaint: "", harv: "all", when: null, sort: "new"};
+  let shown = 100, openId = null, complaintsSig = "";
+  function prep(){
+    for (const c of data.calls) {
+      if (c._p) continue;
+      c._p = parts(c.t);
+      c._hay = [c.complaint, c.where, c.town, c.age, c.level, c.hospital, c.outcome, ...c.units, ...c.harvard_terms,
+                ...c.timeline.map(e => e.text)].filter(Boolean).join(" \n ").toLowerCase();
+    }
+    const names = [...new Set(data.calls.map(c => c.complaint).filter(Boolean))].sort();
+    if (names.join("|") !== complaintsSig) {
+      complaintsSig = names.join("|");
+      const counts = {}; data.calls.forEach(c => { if (c.complaint) counts[c.complaint] = (counts[c.complaint] || 0) + 1; });
+      $("#dComplaint").innerHTML = `<option value="">All complaints</option>` +
+        names.map(n => `<option value="${esc(n)}">${esc(n)} (${counts[n]})</option>`).join("") + `<option value="__none">No complaint heard</option>`;
+      $("#dComplaint").value = flt.complaint;
+    }
+  }
+  function whenLabel(w){
+    if (w.day) return new Date(w.day + "T12:00:00").toLocaleDateString([], {weekday: "short", month: "short", day: "numeric"});
+    if (w.dow != null && w.hour != null) return `${DAYS_LONG[w.dow]}s ${hourRange(w.hour)}`;
+    if (w.dow != null) return DAYS_LONG[w.dow] + "s";
+    return hourRange(w.hour) + ", any day";
+  }
+  function filtered(){
+    const q = flt.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const out = data.calls.filter(c =>
+      (!flt.when || Object.entries(flt.when).every(([k, v]) => c._p[k] === v)) &&
+      (!flt.complaint || (flt.complaint === "__none" ? !c.complaint : c.complaint === flt.complaint)) &&
+      (flt.harv === "all" || !($("#noHuhs").checked && c.huhs)) &&
+      (flt.harv === "all" || (flt.harv === "near" ? c.harvard === "high" && c.walk_min != null && c.walk_min <= (data.near_minutes || 10)
+        : flt.harv === "harvard" ? c.harvard === "high" : !!c.harvard)) &&
+      q.every(w => c._hay.includes(w)));
+    if (flt.sort === "complaint")       // A–Z, calls with no complaint heard last, newest first within a complaint
+      return out.sort((a, b) => (!a.complaint) - (!b.complaint) || (a.complaint || "").localeCompare(b.complaint || "") || b.t - a.t);
+    return flt.sort === "new" ? out.reverse() : out;
+  }
+  const fmtClock = ms => new Date(ms).toLocaleTimeString([], {timeZone: "America/New_York", hour: "numeric", minute: "2-digit"});
+  function hl(text, terms){
+    let h = esc(text);
+    const generic = /^(street|st|avenue|ave|road|rd|square|place|drive|lane|house|houses|hall|center|mount|mt)$/i;
+    const words = [...new Set(terms.flatMap(t => t.split(/[\s/()]+/)).filter(w => w.length > 3 && !generic.test(w)))];
+    if (!words.length) return h;
+    return h.replace(new RegExp("\\b(" + words.map(w => esc(w).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\b", "gi"), "<mark>$1</mark>");
+  }
+  function dRow(c){
+    const open = openId === c.id, dur = c.last && c.last > c.t ? Math.round((c.last - c.t) / 60e3) : 0;
+    const tags = (c.confirmed ? `<span class="ok">Harvard ✓</span>` : c.harvard ? `<span class="lvl ${c.harvard}">${c.harvard === "high" ? "Harvard" : "possible"}</span>` : "") +
+      (c.removed ? `<span class="rmnote">not Harvard (ruled out)</span>` : "") +
+      (c.acuity ? `<span class="acu ${c.acuity}">${esc(c.acuity)} acuity</span>` : "") + (c.level ? `<span class="acu">${esc(c.level)}</span>` : "");
+    const tl = open ? `<div class="tl">${c.timeline.map(e => `<div class="e ${e.note ? "note" : ""}"><span class="tt">${fmtClock(e.t)}</span>
+        <span class="tx">${hl(e.text, e.hits)}</span><span>${e.audio_url ? `<button class="play" data-audio="${esc(e.audio_url)}">▶</button>` : ""}</span></div>`).join("")
+        || `<div class="m">No transmissions kept for this call.</div>`}<div class="acts">${dispatchActions(c)}</div></div>` : "";
+    return `<div class="d ${open ? "open" : ""}" data-did="${esc(c.id)}"><div class="dh">
+      <div class="when">${esc(fmtWhen(c.t))}</div>
+      <div class="what"><b>${esc(c.complaint || "Complaint not heard")}</b>${c.age ? ` · ${esc(c.age)}` : ""}
+        <div class="m">${c.timeline.length} transmission${c.timeline.length === 1 ? "" : "s"}${dur ? ` over ${dur} min` : ""}${c.outcome ? " · " + esc(c.outcome) : ""}${c.hospital ? " · to " + esc(c.hospital) : ""}</div></div>
+      <div class="where">${esc(c.where || "Location not heard")}${c.town ? `<div class="m">${esc(c.town)}</div>` : ""}${c.walk_min != null ?
+        `<div class="m"${c.walk_min <= (data.near_minutes || 10) ? ' style="color:#9cc4f2"' : ""}>${c.walk_min} min walk from Adams House</div>` : ""}</div>
+      <div class="units m">${esc(c.units.join(", "))}</div>
+      <div class="tags">${tags}</div></div>${tl}</div>`;
+  }
+  function renderDispatches(){
+    if (!data) return;                           // still loading
+    prep();
+    const list = filtered();
+    $("#dCount").textContent = `· ${list.length.toLocaleString()}${list.length !== data.calls.length ? " of " + data.calls.length.toLocaleString() : ""}`;
+    $("#dWhen").innerHTML = flt.when ? `<span class="chip">${esc(whenLabel(flt.when))}<button id="dWhenX" title="Show all times">✕</button></span>` : "";
+    $("#dList").innerHTML = list.length
+      ? list.slice(0, shown).map(dRow).join("") + (list.length > shown ? `<button class="more" id="dMore">Show ${Math.min(100, list.length - shown)} more (${(list.length - shown).toLocaleString()} left)</button>` : "")
+      : `<div class="empty">${data.calls.length ? "No dispatches match these filters." : "No dispatches analyzed yet."}</div>`;
+    if (playing) mark();
+  }
+  function showDispatches(only){
+    // the dispatch list with just this one filter, so it matches the number that was clicked
+    Object.assign(flt, {when: null, complaint: "", q: "", harv: "all"}, only);
+    $("#dComplaint").value = flt.complaint; $("#dq").value = ""; $("#dHarv").value = "all";
+    shown = 100; setOpen(true); renderDispatches();
+    $("#dispatches").scrollIntoView({behavior: "smooth", block: "start"});
+  }
+  function setOpen(open){
+    $("#dispatches").classList.toggle("open", open);
+    $("#dToggle").setAttribute("aria-expanded", open);
+    $("#dToggleTxt").textContent = open ? "Hide" : "Show all";
+    store.set("dOpen", open);
+  }
+  setOpen(store.get("dOpen", false));
+  $("#dToggle").onclick = () => setOpen(!$("#dispatches").classList.contains("open"));
+  let qT = null;
+  $("#dq").oninput = () => { clearTimeout(qT); qT = setTimeout(() => { flt.q = $("#dq").value; shown = 100; renderDispatches(); }, 150); };
+  $("#dComplaint").onchange = () => { flt.complaint = $("#dComplaint").value; shown = 100; renderDispatches(); };
+  $("#dHarv").onchange = () => { flt.harv = $("#dHarv").value; shown = 100; renderDispatches(); };
+  $("#dSort").onchange = () => { flt.sort = $("#dSort").value; renderDispatches(); };
+  document.addEventListener("click", async e => {
+    if (e.target.closest("[data-audio]")) return;
+    const pl = e.target.closest("[data-place]");
+    if (pl) {
+      pl.disabled = true;
+      const harvard = pl.dataset.harvard === "1";
+      const r = await fetch("/api/analyze/place", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({address: pl.dataset.place, harvard})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { pl.disabled = false; return alert(j.error || "Couldn't save that"); }
+      $("#prog").innerHTML = `<b>${esc(j.address)}</b> is now on the crew's ${harvard ? "Harvard" : "not-Harvard"} list (Settings › Harvard places). ` +
+        `Live calls use it right away; press <b>Re-score with current rules</b> to apply it to calls already analyzed.`;
+      return;
+    }
+    const q = e.target.closest("[data-dq]");
+    if (q) {
+      q.disabled = true;
+      const r = await fetch("/api/analyze/harvard", {method: "POST", headers: {"Content-Type": "application/json"},
+        // "removed" too, so a server still running older code can't turn Put back / Harvard ✓ into a removal
+        body: JSON.stringify({kind: q.dataset.dq, id: q.dataset.id, ruling: q.dataset.ruling, removed: q.dataset.ruling === "not"})});
+      if (!r.ok) { q.disabled = false; const j = await r.json().catch(() => ({})); return alert(j.error || "Couldn't save that"); }
+      return load();
+    }
+    if (e.target.id === "dMore") { shown += 100; return renderDispatches(); }
+    if (e.target.id === "dWhenX") { flt.when = null; shown = 100; return renderDispatches(); }
+    if (e.target.id === "harvWhenX" || e.target.id === "mapWhenX") { hWhen = null; hComplaint = null; return render(); }
+    const f = e.target.closest("[data-f]");
+    if (f) {
+      const when = JSON.parse(f.dataset.f);
+      if (f.dataset.fk === "harv") {              // a Harvard chart: exactly the Harvard calls it counted
+        hWhen = when; hComplaint = null; render();
+        return $("#harvSection").scrollIntoView({behavior: "smooth", block: "start"});
+      }
+      return showDispatches({when});
+    }
+    const d = e.target.closest(".dh");
+    if (d) { const id = d.parentElement.dataset.did; openId = openId === id ? null : id; renderDispatches(); }
+  });
+  $("#dCsv").onclick = () => {
+    const cell = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = [["When (Eastern)", "Weekday", "Complaint", "Location", "Town", "Age", "Level", "Acuity", "Units", "Harvard", "Harvard terms",
+                   "Hospital", "Outcome", "Transmissions", "First transmission"]];
+    for (const c of filtered()) rows.push([fmtWhen(c.t), DAYS_LONG[c._p.dow], c.complaint, c.where, c.town, c.age, c.level, c.acuity, c.units.join("; "),
+      c.harvard || "", c.harvard_terms.join("; "), c.hospital, c.outcome, c.timeline.length, (c.timeline[0] || {}).text]);
+    const blob = new Blob([rows.map(r => r.map(cell).join(",")).join("\r\n")], {type: "text/csv"});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = `pro-ems-dispatches-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+  };
+
+  // ---- job progress
+  function renderJob(){
+    const running = job && !job.finished;
+    $("#btnStart").disabled = !!running; $("#btnCancel").hidden = !running; $("#btnRescore").disabled = !!running;
+    const stale = data && data.stale && !(running && job.kind === "rescore") ?
+      `<div class="sub">These results were scored with older rules; they're re-scored with today's rules automatically ` +
+      `(or press <b>Re-score with current rules</b>). Until then, "Follow the new rules" shows today's verdict for that call.</div>` : "";
+    if (!job) { $("#prog").innerHTML = stale; return; }
+    if (job.kind === "rescore") {
+      const pct = job.total ? Math.round(100 * job.done / job.total) : 0;
+      const what = {starting: "Starting the re-score…", "re-scoring": `Re-scoring with the current rules: ${job.done} of ${job.total} transmissions`,
+        done: `Re-scored ${job.total} transmissions with the current rules: ${job.counts.alerts} Harvard alert${job.counts.alerts === 1 ? "" : "s"}.`,
+        cancelled: "Re-score cancelled; nothing was changed.", error: "The re-score stopped with an error; nothing was changed."}[job.state] || job.state;
+      $("#prog").innerHTML = `<b>${esc(what)}</b>` + (running ? ` The charts keep the previous results until it finishes.<progress max="100" value="${pct}"></progress>` : "") +
+        (job.error ? `<div class="err">${esc(job.error)}</div>` : "") + stale;
+      return;
+    }
+    const c = job.counts, day = job.day ? new Date(job.day).toLocaleDateString([], {timeZone: "America/New_York", weekday: "short", month: "short", day: "numeric"}) : "";
+    const pct = job.days_total ? Math.round(100 * (job.days_done + (job.listed ? job.done / job.listed : 0)) / job.days_total) : 0;
+    const what = {starting: "Starting…", "loading transcripts": "Loading transcripts already on file…", "waiting for Whisper": "Waiting for Whisper to load…",
+      listing: `Listing ${day} from OpenMHz… ${job.listed} calls so far`, transcribing: `Working on ${day}: ${job.done} of ${job.listed} calls`,
+      done: "Done.", cancelled: "Cancelled.", error: "Stopped with an error."}[job.state] || job.state;
+    const counts = `${c.processed} analyzed (${c.reused} reused from logs, ${c.whisper} newly transcribed)` +
+      (c.already ? ` · ${c.already} already analyzed earlier` : "") + (c.skipped_short ? ` · ${c.skipped_short} short ones skipped (long mode)` : "") +
+      (c.failed ? ` · ${c.failed} couldn't be downloaded or transcribed (retried next run)` : "") +
+      ` · ${c.alerts} Harvard alert${c.alerts === 1 ? "" : "s"}` +
+      (running ? ` · charts update every ${data?.refresh_every || 50} calls (last at ${data?.updated_at ?? 0})` : "");
+    $("#prog").innerHTML = `<b>${esc(what)}</b> Day ${Math.min(job.days_done + (running ? 1 : 0), job.days_total)} of ${job.days_total}.` +
+      `<br>${counts}${job.long != null ? `<br>Long mode is on: only transmissions over ${job.long} s are transcribed.` : ""}` +
+      (job.error ? `<div class="err">${esc(job.error)}</div>` : "") + (running ? `<progress max="100" value="${pct}"></progress>` : "") + stale;
+  }
+
+  async function load(){
+    try {
+      const r = await fetch("/api/analyze"), j = await r.json();
+      if (!r.ok) { $("#prog").innerHTML = `<span class="err">${esc(j.error || "Couldn't load")}</span>`; return; }
+      data = j.results; job = j.job;
+      if (data.talkgroup_name) $("#tgName").textContent = `· ${data.talkgroup_name} (TG ${data.talkgroup})`;
+      renderJob(); render();
+      clearTimeout(pollT);
+      if (job && !job.finished) pollT = setTimeout(load, 3000);
+    } catch (e) {
+      $("#prog").innerHTML = `<span class="err">Couldn't reach the server (${esc(e.message)}).</span>`;
+      clearTimeout(pollT); pollT = setTimeout(load, 10000);
+    }
+  }
+
+  async function post(path, body){
+    const r = await fetch(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body || {})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { $("#prog").innerHTML = `<span class="err">${esc(j.error || "Error")}</span>`; return; }
+    load();
+  }
+  $("#btnStart").onclick = () => {
+    store.set("from", $("#from").value); store.set("to", $("#to").value);
+    post("/api/analyze/start", {from: $("#from").value, to: $("#to").value});
+  };
+  $("#btnCancel").onclick = () => post("/api/analyze/cancel");
+  $("#btnRescore").onclick = () => post("/api/analyze/rescore");
+  $("#showRemoved").onchange = () => render();
+  $("#hSort").value = store.get("hSort", "new");
+  $("#hSort").onchange = () => { store.set("hSort", $("#hSort").value); render(); };
+  $("#noHuhs").checked = store.get("noHuhs", false);
+  $("#noHuhs").onchange = () => { store.set("noHuhs", $("#noHuhs").checked); shown = 100; render(); };
+  $("#incNear").checked = store.get("incNear", false);
+  $("#incNear").onchange = () => { store.set("incNear", $("#incNear").checked); render(); };
+  $("#incMed").onchange = () => { store.set("incMed", $("#incMed").checked); render(); };
+  $("#mode").onclick = e => { const b = e.target.closest("button"); if (!b) return; mode = b.dataset.v; store.set("mode", mode); render(); };
+
+  // audio: one clip at a time; press again to stop
+  const audio = new Audio(); let playing = null;
+  const mark = () => document.querySelectorAll(".play").forEach(b => b.classList.toggle("on", b.dataset.audio === playing));
+  audio.onended = audio.onerror = () => { playing = null; mark(); };
+  function toggleClip(url){
+    if (playing === url) { audio.pause(); playing = null; }
+    else { audio.src = url; audio.play().catch(() => {}); playing = url; }
+    mark();
+  }
+  document.addEventListener("click", e => { const b = e.target.closest("[data-audio]"); if (b) toggleClip(b.dataset.audio); });
+  let rT = null, lastW = innerWidth;
+  addEventListener("resize", () => { if (innerWidth === lastW) return; lastW = innerWidth; clearTimeout(rT); rT = setTimeout(render, 150); });
+  load();
+})();
+</script>
+</body>
+</html>
