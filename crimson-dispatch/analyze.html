@@ -613,9 +613,12 @@ tr.removed td{opacity:.55}
   function dispatchActions(c){
     const terms = c.harvard_terms.length ? ` (${esc(c.harvard_terms.join(", "))})` : "";
     const addr = /^\d+[A-Za-z]?\s+\S/.test(c.where || "") ? c.where : null;
-    const always = addr ? `<span style="margin-left:auto;display:inline-flex;gap:6px;flex-wrap:wrap">Every call at ${esc(addr)}:
-      <button class="dq yes" data-place="${esc(addr)}" data-harvard="1" title="Add to Settings > Harvard places: always a Harvard call">Always Harvard</button>
-      <button class="dq" data-place="${esc(addr)}" data-harvard="0" title="Add to Settings > Harvard places: never a Harvard call (unless HUPD / private response for Harvard)">Never Harvard</button></span>` : "";
+    const yes = `<button class="dq yes" data-place="${esc(addr)}" data-harvard="1" title="Add to Settings > Harvard places: always a Harvard call">Always Harvard</button>`;
+    const no = `<button class="dq" data-place="${esc(addr)}" data-harvard="0" title="Add to Settings > Harvard places: never a Harvard call (unless HUPD / private response for Harvard)">Never Harvard</button>`;
+    const listed = {harvard: "Always Harvard", not: "Never Harvard", possible: "Possibly Harvard"}[c.crew];
+    const always = !addr ? "" : `<span style="margin-left:auto;display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center">` +
+      (listed ? `<span class="ok">${listed}</span> every call at ${esc(addr)} (Settings › Harvard places) · change: ${c.crew === "harvard" ? no : yes}`
+              : `Every call at ${esc(addr)}: ${yes} ${no}`) + `</span>`;
     return dispatchActionsCore(c, terms) + always;
   }
   function dispatchActionsCore(c, terms){
@@ -730,9 +733,13 @@ tr.removed td{opacity:.55}
         body: JSON.stringify({address: pl.dataset.place, harvard})});
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { pl.disabled = false; return alert(j.error || "Couldn't save that"); }
-      $("#prog").innerHTML = `<b>${esc(j.address)}</b> is now on the crew's ${harvard ? "Harvard" : "not-Harvard"} list (Settings › Harvard places). ` +
-        `Live calls use it right away; press <b>Re-score with current rules</b> to apply it to calls already analyzed.`;
-      return;
+      // say so right where it was clicked; the calls at that address change on the page straight away
+      const box = pl.parentElement;
+      box.innerHTML = `<span class="ok">Saved</span> every call at <b>${esc(j.address)}</b> is now ${harvard ? "a Harvard call" : "not a Harvard call" +
+        " (unless HUPD or a private response for Harvard is heard)"} · Settings › Harvard places`;
+      $("#prog").innerHTML = `<b>${esc(j.address)}</b> is now on the crew's ${harvard ? "Harvard" : "not-Harvard"} list. ` +
+        `Live calls use it right away; the calls already analyzed show it now and are re-scored by themselves in a minute or two.`;
+      return load();
     }
     const q = e.target.closest("[data-dq]");
     if (q) {

@@ -1217,6 +1217,17 @@
   ],
   "crew_places": [
     {
+      "label": "34 Mount Auburn Street",
+      "treat": "not",
+      "harvard": false,
+      "addresses": [
+        "34 Mount Auburn Street"
+      ],
+      "names": [],
+      "note": "added from Analyze",
+      "at": 1792600335488
+    },
+    {
       "label": "1575 Cambridge Street",
       "treat": "not",
       "harvard": false,

@@ -419,6 +419,7 @@ class RescoreJob:
 
 
 RULING_KINDS = ("alerts", "dispatches", "harvard_alerts", "harvard_dispatches")
+AUTO_TERMS = {"HUPD", "Private response for Harvard"}      # always Harvard, whatever the crew's list says
 HUHS_TEXT = re.compile(r"\b(huhs|hhs|h2hs|harvard (university )?health services)\b", re.I)
 
 
@@ -501,6 +502,8 @@ class Analyzer:
         self._awalk = {}                    # (alert id, data build) -> [lat, lon, place] or None
         self._texts = {}                    # ("alerts" | "dispatches", id) -> its transmissions' text (latest results)
         self._store_ids = None              # ids already in the analyzed store (read once, then kept up to date)
+        self._addr = {}                     # (dispatch id, board's address, data build) -> address to use
+        self._keys = {}                     # (address text, data build) -> crew-list keys it stands for
         self._live_urls = set()             # radio clips the live feed added
         self._live_from = self._live_last = None    # the live feed's current unbroken stretch
         self._live_saved = 0
@@ -639,6 +642,45 @@ class Analyzer:
                     break
         self._walk[key] = out
         return out
+
+    def dispatch_address(self, c):
+        """The dispatch's address as the matcher reads it, where that's the board's reading made complete: the board
+        takes "13, 16, Mass Ave" as 16 Mass Ave and keeps Whisper's spellings ("Linnean"); the matcher votes on the
+        read-back (1316 Mass Ave) and uses the city's names. Anything else: the board's address as it was."""
+        w = c.get("where")
+        m = getattr(self.monitor, "matcher", None)
+        loc = getattr(m, "locator", None)
+        if not w or not w[:1].isdigit() or not loc or not loc.ok or (c.get("town") and c["town"].lower() != "cambridge"):
+            return w
+        key = (c["id"], w, getattr(loc, "built", None))
+        if key not in self._addr:
+            from matcher import tokenize, detect_town, number_readings
+            got = None
+            for e in [e for e in c["timeline"] if not e["note"]][:3]:
+                toks = tokenize(e["text"])
+                if detect_town(toks)[0]:
+                    break
+                ls = [l for l in loc.locate(toks, number_readings) if l["kind"] == "address" and l["verdict"] != "unknown"]
+                if ls:
+                    got = ls[0]
+                    break
+            nb, sb = w.split(" ", 1)[0], (w.split(" ", 1) + [""])[1].lower()
+            ok = got and str(got["number"]).endswith(nb.lstrip("0") or "0") and \
+                got["street"].replace(" ", "")[:3] == sb.replace(" ", "").replace("mass", "massachusetts")[:3]
+            self._addr[key] = got["where"] if ok else w
+        return self._addr[key]
+
+    def place_keys(self, text):
+        """Crew-list keys for an address or corner as written ("1316 Mass Ave", "Mill St & Plympton St")."""
+        m = getattr(self.monitor, "matcher", None)
+        loc = getattr(m, "locator", None)
+        if not text or not loc or not loc.ok:
+            return []
+        key = (text, getattr(loc, "built", None))
+        if key not in self._keys:
+            from matcher import tokenize, number_readings
+            self._keys[key] = loc.parse_place(text, tokenize, number_readings)
+        return self._keys[key]
 
     def dispatch_walk(self, c):
         """Walking minutes from Adams House to a dispatch, or None (see dispatch_point)."""
@@ -841,6 +883,8 @@ class Analyzer:
                  for iid, inc in incidents.items() if iid not in board.aliases]
         calls.sort(key=lambda c: c["t"])
         for c in calls:
+            c["where_heard"] = c["where"]
+            c["where"] = self.dispatch_address(c)
             c["walk_min"] = self.dispatch_walk(c)
         tg_name = self.monitor.tg_names().get(self.tg, "")
         cfg = getattr(getattr(self.monitor, "config", None), "get", lambda: {})()
@@ -849,6 +893,7 @@ class Analyzer:
         alerts = [{"id": a["id"], "t": a["time"], "level": a["level"], "context": a.get("context") or a.get("text") or "",
                    "texts": [x.get("text") or "" for x in a.get("transmissions") or []] or [a.get("text") or ""],
                    "wheres": [h["where"] for h in a.get("hits", []) if h.get("where")], "huhs": is_huhs(a),
+                   "where_terms": [h["term"] for h in a.get("hits", []) if h.get("where")],
                    "urls": [x.get("audio_url") for x in a.get("transmissions") or [] if x.get("audio_url")] or [a.get("audio_url")], "terms": [h["term"] for h in a.get("hits", [])],
                    "text": a.get("text") or "", "audio_url": a.get("audio_url"), "acuity": a.get("acuity")}
                   for a in _read_json(paths[1], {}).values() if a.get("talkgroup_name") == tg_name]
@@ -878,6 +923,16 @@ class Analyzer:
         def cleared_of(urls):
             return next((cleared_url[u] for u in urls if u in cleared_url), None)
 
+        # "Always / Never Harvard" (the crew's list) clicked while the stored levels are from older rules: show what the
+        # list now says for those addresses right away (HUPD / private response for Harvard still always count)
+        m = getattr(self.monitor, "matcher", None)
+        loc = getattr(m, "locator", None)
+        crew_all = getattr(m, "crew", {}) if loc is not None and loc.ok else {}
+        crew = crew_all if not current else {}
+
+        def crew_treat(text):
+            return next((crew_all[k][0] for k in self.place_keys(text) if k in crew_all), None) if crew_all else None
+
         url_dispatch = {e["audio_url"]: c for c in calls for e in c["timeline"] if e.get("audio_url")}
         with_alert = set()
         for a in alerts:
@@ -890,6 +945,14 @@ class Analyzer:
             cl = None if rl else cleared_of(a["urls"])
             if cl:
                 a["level"] = {"high": "high", "possible": "medium"}.get(cl["level"])
+            elif crew and not rl and not set(a["terms"]) & AUTO_TERMS:
+                treats = {crew_treat(w) for w in a["wheres"] + ([linked[0]["where"]] if linked else [])} - {None}
+                if "harvard" in treats:
+                    a["level"] = "high"
+                elif "possible" in treats:
+                    a["level"] = "medium"
+                elif "not" in treats:          # a Harvard building it also named stays a "possible"
+                    a["level"] = "medium" if set(a["terms"]) - set(a["where_terms"]) else None
             a["rules_level"] = a["level"]                       # what today's rules said, before any ruling
             if a["confirmed"]:
                 a["level_was"], a["level"] = a["level"], "high"
@@ -898,9 +961,22 @@ class Analyzer:
             urls = [e["audio_url"] for e in c["timeline"] if e.get("audio_url")]
             rl = ruling_of(c["id"], urls)
             rule_of_call[c["id"]] = rl
+            c["crew"] = crew_treat(c.get("where"))          # its address on the crew's list (Always / Never Harvard)
             cl = None if rl else cleared_of(urls)
             if cl:
                 c["harvard"] = {"high": "high", "possible": "medium"}.get(cl["level"])
+            elif crew and not rl and not set(c["harvard_terms"]) & AUTO_TERMS:
+                t = crew_treat(c.get("where"))
+                if t:
+                    c["harvard"] = {"harvard": "high", "possible": "medium"}.get(t)
+                    if t == "harvard" and c["id"] not in with_alert:
+                        first = next((e for e in c["timeline"] if not e["note"]), c["timeline"][0] if c["timeline"] else {})
+                        alerts.append({"id": "d-" + c["id"], "t": c["t"], "level": "high", "level_was": None,
+                                       "rules_level": "high", "terms": [f"{c['where']} (on the crew's Harvard list)"],
+                                       "text": first.get("text", ""), "texts": [first.get("text", "")], "wheres": [c["where"]],
+                                       "context": first.get("text", ""), "audio_url": first.get("audio_url"),
+                                       "acuity": c.get("acuity"), "urls": urls, "dispatch_id": c["id"], "removed": None,
+                                       "confirmed": None, "manual": True, "crew_list": True})
             c["rules_harvard"] = c["harvard"]
             if rl and rl[1] == "not":
                 c["removed"] = rl[2]
@@ -914,10 +990,11 @@ class Analyzer:
                     alerts.append({"id": "d-" + c["id"], "t": c["t"], "level": "high", "level_was": None,
                                    "rules_level": None, "terms": ["marked Harvard by crew"], "text": first.get("text", ""),
                                    "context": " ".join(e["text"] for e in c["timeline"] if not e["note"]),
+                                   "texts": [e["text"] for e in c["timeline"] if not e["note"]], "wheres": [],
                                    "audio_url": first.get("audio_url"), "acuity": c.get("acuity"), "urls": urls,
                                    "dispatch_id": c["id"], "removed": None, "confirmed": c["confirmed"], "manual": True})
         alerts = [a for a in alerts if a["level"]]          # "Follow the new rules: not Harvard"
-        self._texts = {("alerts", a["id"]): a["texts"] for a in alerts}
+        self._texts = {("alerts", a["id"]): a.get("texts") or [] for a in alerts}
         self._texts.update({("dispatches", c["id"]): [e["text"] for e in c["timeline"] if not e["note"]] for c in calls})
         # how far each Harvard call is from Adams House ("near Harvard College" checkbox on the page)
         by_id = {c["id"]: c for c in calls}
@@ -938,7 +1015,8 @@ class Analyzer:
             r = a.get("removed") or a.get("confirmed")
             if not r or r.get("reviewed"):
                 continue
-            texts = a["texts"] if not a.get("manual") else self._texts.get(("dispatches", a["dispatch_id"]), a["texts"])
+            texts = a.get("texts") or [] if not a.get("manual") else \
+                self._texts.get(("dispatches", a["dispatch_id"])) or a.get("texts") or []
             now, why_text = self.judge_texts(texts + ([a["context"]] if not a.get("manual") else []))
             if current:
                 now = {"high": "high", "medium": "possible"}.get(a.get("rules_level"), "none")
@@ -965,6 +1043,7 @@ class Analyzer:
             a.pop("context", None)
             a.pop("wheres", None)
             a.pop("texts", None)
+            a.pop("where_terms", None)
         alerts.sort(key=lambda a: a["t"])
         out = {"talkgroup": self.tg, "talkgroup_name": tg_name, "transmissions": len(recs),
                "calls": calls, "harvard": alerts, "conflicts": conflicts,
