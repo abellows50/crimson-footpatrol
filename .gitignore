@@ -10,6 +10,8 @@ settings.env
 .venv/
 .venv.old.*/
 models/
+# raw City of Cambridge / Harvard map downloads (parcels.py --update rebuilds them; ~35 MB)
+crimson-dispatch/data/cache/
 
 __pycache__/
 *.pyc
