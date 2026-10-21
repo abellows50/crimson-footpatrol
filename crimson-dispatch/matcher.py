@@ -66,14 +66,14 @@ _HARV = r"(?:harvard|harvards|hupd|hupds|h[uwmeo]pd)"
 _HARV_FUZZY = r"(?:harbor|harbour|hobbit|havard|harvad|harverd)"
 _NOT_NAME = (r"(?! (?:street|avenue|way|square|vanguard|pilgrim|bridge|mbta|meta|mdta|mta|station|coop|coupe|"
              r"house of pizza|hospital|book|stadium avenue)\b)")
-_FILL = r"(?: (?:its|it|is|gonna|going|to|be|will|itll|this|ones|one|a|an|uh|um))*"     # "it's gonna be"
 PRIVATE_HIGH = [
     re.compile(r"\b" + _PRIV + _LINK + r" " + _HARV + r"\b" + _NOT_NAME),                 # private response for Harvard
-    re.compile(r"\b" + _PRIV + _FILL + r" (?:for|from) (?:the )?" + _HARV + r"\b" + _NOT_NAME),   # ..., it's gonna be for Harvard
+    re.compile(r"\b" + _PRIV + r"(?: [a-z]+){0,3} (?:for|from) (?:the )?" + _HARV + r"\b" + _NOT_NAME),   # ..., it's gonna be for Harvard
     re.compile(r"\b" + _PRIV + r" (?:on behalf of|requested by|request(?:ed)? from) (?:the )?" + _HARV + r"\b" + _NOT_NAME),
     # HUPD private response ("going home to Harvard. Private call" is two sentences: checked per sentence, below)
     re.compile(r"(?<!\bto )(?<!\bat )(?<!\bin )(?<!\bnear )(?<!\bfrom )(?<!\bhome )\b" + _HARV + r" " + _PRIV + r"\b"),
-    re.compile(r"\brespon(?:d|se|ding)(?: [a-z]+)? for (?:the )?" + _HARV + r"\b" + _NOT_NAME),   # respond for Harvard
+    # respond for Harvard, "respond in Boston for Harvard"
+    re.compile(r"\brespon(?:d|se|ding)(?: [a-z]+){0,3} for (?:the )?" + _HARV + r"\b" + _NOT_NAME),
     re.compile(r"\b(?:that|the|a) harvard response\b"),                                    # pick up that Harvard response
 ]
 _HARV_FIRST = PRIVATE_HIGH[3]

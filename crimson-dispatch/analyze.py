@@ -35,6 +35,9 @@ LOG_TAG = "analyze"                      # the private Monitor logs to logs/repl
 RESCORE_TAG = "analyze-rescore"          # a re-score builds logs/replay-analyze-rescore-*.jsonl, then swaps them in
 ALERTS = "analyze-alerts.json"
 COVERAGE = "analyze-coverage.json"
+LIVE_GAP_MS = 5 * 60_000                 # the live feed counts as covering the time between polls less than this apart
+_FILES = threading.Lock()                # the store / alerts / coverage files: Analyze, re-scores and the live feed
+LIVE_IDS = set()                         # calls the live monitor added (an Analyze run over today skips them)
 # Crew rulings. Ruled out: {"alerts": {id: ruling}, "dispatches": {id: ruling}};
 # confirmed Harvard: {"harvard_alerts": {...}, "harvard_dispatches": {...}}.
 # A ruling is {"by", "at", "urls": [the call's audio clips], "reviewed": bool}: it applies to any alert or dispatch
@@ -98,6 +101,14 @@ def _read_json(path, default):
             return json.load(f)
     except (OSError, ValueError):
         return default
+
+
+def _add_coverage(log_dir, tg, a, b):
+    path = os.path.join(log_dir, COVERAGE)
+    with _FILES:
+        cov = _read_json(path, {})
+        cov[tg] = _merge(cov.get(tg, []) + [[a, b]])
+        _write_json(path, cov)
 
 
 def _write_json(path, obj):
@@ -207,17 +218,15 @@ class AnalyzeJob:
 
     def _save_alerts(self):
         path = os.path.join(self.log_dir, ALERTS)
-        saved = _read_json(path, {})
-        for a in list(self.child.alerts):
-            if not a.get("test"):
-                saved[a["id"]] = a
-        _write_json(path, saved)
+        with _FILES:
+            saved = _read_json(path, {})
+            for a in list(self.child.alerts):
+                if not a.get("test"):
+                    saved[a["id"]] = a
+            _write_json(path, saved)
 
     def _add_coverage(self, a, b):
-        path = os.path.join(self.log_dir, COVERAGE)
-        cov = _read_json(path, {})
-        cov[self.tg] = _merge(cov.get(self.tg, []) + [[a, b]])
-        _write_json(path, cov)
+        _add_coverage(self.log_dir, self.tg, a, b)
 
     # -- run
     def run(self):
@@ -258,7 +267,7 @@ class AnalyzeJob:
                     while self.monitor.work.qsize() and not self.cancelled:
                         time.sleep(0.5)                 # live traffic always goes first
                     self.done += 1
-                    if c["_id"] in have:
+                    if c["_id"] in have or c["_id"] in LIVE_IDS:
                         self.counts["already"] += 1
                         last = _iso_ms(c["time"])
                         continue
@@ -348,6 +357,7 @@ class RescoreJob:
                 if r.get("id") and r.get("audio_url") and not r.get("error"):
                     recs[r["id"]] = r
             recs = sorted(recs.values(), key=lambda r: r["time"])
+            start_ids = {r.get("id") for r in _read_jsonl(store)}
             self.total = len(recs)
             # the words Whisper heard (before crew fixes and the junk filter, which today's pipeline re-applies)
             known = {r["audio_url"]: r.get("asr_text") or r.get("raw_text") or r.get("text") or "" for r in recs}
@@ -380,10 +390,19 @@ class RescoreJob:
                         os.remove(p)
                 self.state = "cancelled"
             else:
-                with an.lock:
+                with an.lock, _FILES:
+                    # calls and alerts the live feed added while this ran aren't in the re-score: keep them
+                    later = [r for r in _read_jsonl(store) if r.get("id") not in start_ids]
+                    if later:
+                        with open(out_calls, "a") as f:
+                            f.writelines(json.dumps(r) + "\n" for r in later)
+                    new_alerts = {a["id"]: a for a in child.alerts if not a.get("test")}
+                    for a in _read_json(os.path.join(d, ALERTS), {}).values():
+                        if a.get("live") and a.get("created", 0) >= self.created:
+                            new_alerts.setdefault(a["id"], a)
                     if os.path.exists(out_calls):
                         os.replace(out_calls, store)
-                    _write_json(os.path.join(d, ALERTS), {a["id"]: a for a in child.alerts if not a.get("test")})
+                    _write_json(os.path.join(d, ALERTS), new_alerts)
                     if os.path.exists(out_alerts):
                         os.replace(out_alerts, os.path.join(d, f"replay-{LOG_TAG}-alerts.jsonl"))
                 self.state = "done"
@@ -481,6 +500,51 @@ class Analyzer:
         self._judged = {}                   # (rules signature, text) -> judge() / explain() result
         self._awalk = {}                    # (alert id, data build) -> [lat, lon, place] or None
         self._texts = {}                    # ("alerts" | "dispatches", id) -> its transmissions' text (latest results)
+        self._store_ids = None              # ids already in the analyzed store (read once, then kept up to date)
+        self._live_urls = set()             # radio clips the live feed added
+        self._live_from = self._live_last = None    # the live feed's current unbroken stretch
+        self._live_saved = 0
+
+    # ---- the live monitor feeds Analyze as it goes, so the page keeps up without pressing Analyze
+    def add_live(self, rec):
+        """A transmission the live monitor just processed: Pro EMS ones join the analyzed calls."""
+        if str(rec.get("talkgroup")) != self.tg or not rec.get("id"):
+            return
+        store = os.path.join(self.log_dir, f"replay-{LOG_TAG}-calls.jsonl")
+        with _FILES:
+            if self._store_ids is None:
+                self._store_ids = {r.get("id") for r in _read_jsonl(store)}
+            if rec["id"] in self._store_ids:
+                return                      # analyzed already (e.g. the startup rewind of a run just done)
+            with open(store, "a") as f:
+                f.write(json.dumps(rec) + "\n")
+            self._store_ids.add(rec["id"])
+        LIVE_IDS.add(rec["id"])
+        if rec.get("audio_url"):
+            self._live_urls.add(rec["audio_url"])
+        self.live_heartbeat(_now_ms(), save=True)
+
+    def add_live_alert(self, alert):
+        """A live alert (new, or a transmission folded in) on a call the live feed added."""
+        if alert.get("test") or alert.get("talkgroup_name") != self.monitor.tg_names().get(self.tg):
+            return
+        first = (alert.get("transmissions") or [{}])[0].get("audio_url") or alert.get("audio_url")
+        if first not in self._live_urls:
+            return                          # its call was analyzed by an Analyze run: that run has its alert
+        path = os.path.join(self.log_dir, ALERTS)
+        with _FILES:
+            saved = _read_json(path, {})
+            saved[alert["id"]] = json.loads(json.dumps(dict(alert, live=True)))
+            _write_json(path, saved)
+
+    def live_heartbeat(self, now, save=False):
+        """The live monitor polled OpenMHz successfully: the time since its last poll counts as analyzed."""
+        if self._live_last is None or now - self._live_last > LIVE_GAP_MS:
+            self._live_from = now
+        self._live_last = now
+        if save or now - self._live_saved >= 10 * 60_000:
+            self._live_saved = now
+            _add_coverage(self.log_dir, self.tg, self._live_from, now)
 
     def _urls_of(self, kind, item_id):
         """The audio clips of an alert or a dispatch in the latest results."""

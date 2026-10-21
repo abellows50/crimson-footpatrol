@@ -805,11 +805,14 @@ tr.removed td{opacity:.55}
     try {
       const r = await fetch("/api/analyze"), j = await r.json();
       if (!r.ok) { $("#prog").innerHTML = `<span class="err">${esc(j.error || "Couldn't load")}</span>`; return; }
+      // the live monitor adds Pro EMS calls as they happen: keep checking (every 3 s while a job runs, else 15 s),
+      // and redraw only when something changed
+      const changed = !data || j.results.updated !== data.updated || JSON.stringify(j.job) !== JSON.stringify(job);
       data = j.results; job = j.job;
       if (data.talkgroup_name) $("#tgName").textContent = `· ${data.talkgroup_name} (TG ${data.talkgroup})`;
-      renderJob(); render();
+      if (changed) { renderJob(); render(); }
       clearTimeout(pollT);
-      if (job && !job.finished) pollT = setTimeout(load, 3000);
+      pollT = setTimeout(load, job && !job.finished ? 3000 : 15000);
     } catch (e) {
       $("#prog").innerHTML = `<span class="err">Couldn't reach the server (${esc(e.message)}).</span>`;
       clearTimeout(pollT); pollT = setTimeout(load, 10000);

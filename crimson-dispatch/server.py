@@ -593,6 +593,15 @@ class Monitor:
         os.makedirs(LOG_DIR, exist_ok=True)
 
     # -- helpers
+    def _to_analyze(self, what, item):
+        """The live monitor keeps the Analyze page up to date (never lets that get in the way of an alert)."""
+        an = getattr(self, "analyzer", None)
+        if an:
+            try:
+                getattr(an, what)(item)
+            except Exception as e:
+                log(f"Analyze live feed: {type(e).__name__}: {e}")
+
     def _say(self, msg):
         """A console line about one call (skipped when Analyze or a re-score is working through thousands)."""
         if not self.quiet:
@@ -742,6 +751,7 @@ class Monitor:
                     while len(self.seen) > 5000:
                         self.seen.popitem(last=False)
                 self._set_status(last_poll_ok=now_ms(), last_poll_error=None, feed_alarm_sent=False)
+                self._to_analyze("live_heartbeat", now_ms())
                 backoff = self.args.poll
             except Exception as e:
                 err = f"{type(e).__name__}: {e}"
@@ -888,6 +898,7 @@ class Monitor:
             self.status["last_call_ms"] = max(self.status["last_call_ms"] or 0, t_ms)
             self.status["calls_processed"] += 1
         self._write_log(rec)
+        self._to_analyze("add_live", rec)
         self.hub.publish("call", rec)
         try:
             if self.board.ingest(rec):
@@ -934,6 +945,7 @@ class Monitor:
                         a["text"] = rec["text"] or a["text"]
                         a["audio_url"] = rec["audio_url"] or a["audio_url"]
                     self.hub.publish("alert_update", a)
+                    self._to_analyze("add_live_alert", a)
                     if upgraded:
                         self.hub.publish("alert", a)
                         if self._should_push(a):
@@ -950,6 +962,7 @@ class Monitor:
                                         "talkgroup_name": rec["talkgroup_name"]}]}
             self.alerts.append(alert)
         self._say(f"*** {level.upper()} ALERT: {[h['term'] for h in hits]}")
+        self._to_analyze("add_live_alert", alert)
         self.hub.publish("alert", alert)
         with open(self._log_path("alerts"), "a") as f:
             f.write(json.dumps(alert) + "\n")

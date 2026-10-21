@@ -123,6 +123,7 @@ CASES = [
     ("Ambulance 2, ah, PD is on scene, 360 Mount Auburn Street, unit 3, psych.", "none"),
     ("Paramedic 4, 2 Mount Auburn Street, unit 509, a Harvard University student, intoxicated.", "none"),
     ("Paramedic 6, private response, it's gonna be for Harvard, Brattle Street, a fall", "high"),
+    ("Ambulance 12, respond in Boston for Harvard, Harvard Athletics, 65 North Harvard Street, gate 8", "high"),
     ("Paramedic 12, going home to Harvard. Private call, Youville House, 1573 Cambridge Street, unit 140.", "none"),
     ("Ambulance 10, private call, Linnaean Street, the assisted living, 85-year-old, fall.", "possible"),
     # a Harvard name used as a landmark or a street
