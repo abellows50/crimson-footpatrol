@@ -162,7 +162,8 @@ def spoken(street):
 
 def main():
     cfg = json.load(open(os.path.join(HERE, "config.json")))
-    m = matcher.Matcher(cfg)
+    # the rules and the records, without the crew's own Always / Never Harvard list (which is meant to override them)
+    m = matcher.Matcher(dict(cfg, crew_places=[], not_harvard_places=[]))
     fails = 0
     print("== labeled cases")
     for text, want in CASES:

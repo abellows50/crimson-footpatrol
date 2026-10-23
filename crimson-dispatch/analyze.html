@@ -91,6 +91,11 @@ td.tx{font-family:var(--mono)}
 .dlist .tl .e .tt{font-family:var(--mono);color:var(--muted);font-size:12px}
 .dlist .tl .e .tx{font-family:var(--mono);font-size:13px}
 .dlist .tl .e.note .tx{color:var(--muted);font-style:italic;font-family:inherit}
+.dlist .tl .e.support .tx{color:#bcd7ff}
+.dlist .tl .e.support .tt::after{content:" support";display:block;font-size:10px;color:#9ec5f4;text-transform:uppercase;letter-spacing:.06em}
+.supp{border:1px dashed #3a4a5e;border-radius:8px;padding:8px 10px;margin:8px 0}
+.supp .r{display:grid;grid-template-columns:64px 150px minmax(0,1fr) auto;gap:10px;padding:5px 0;border-top:1px solid #222a34;font-size:12px;align-items:start}
+.supp .r:first-of-type{border-top:none}
 .dlist mark{background:rgba(255,107,129,.3);color:#fff;border-radius:3px;padding:0 2px}
 .acu{font-size:11px;padding:1px 6px;border-radius:5px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
 .acu.high{color:#ffb3bf;border-color:rgba(255,59,85,.6)}
@@ -219,6 +224,17 @@ tr.removed td{opacity:.55}
     <div class="mapkey" id="mapKey"></div>
   </section>
 
+  <section class="card" id="btCard">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0;display:block">⚡ Breakthrough calls <span id="btCount" style="text-transform:none;letter-spacing:0"></span></h2>
+      <div class="seg" id="btSeg"><button data-v="all" class="on">All</button><button data-v="harvard">Harvard addresses</button><button data-v="not">Not Harvard</button></div>
+    </div>
+    <p class="sub" style="margin:6px 0 8px">Time-critical calls (cardiac arrest, stroke, severe bleeding, anaphylaxis, overdose, difficulty
+      breathing, unresponsive, seizure, pedestrian struck) within a 10-minute walk of Adams House, where minutes to an EMT matter. Harvard address
+      or not: the ones that aren't are marked, since HUPD doesn't cover you there. Live, these alert and push as <b>BREAKTHROUGH</b>.</p>
+    <div class="tablewrap" id="btTable"></div>
+  </section>
+
   <section class="card" id="complaintsCard">
     <h2>Chief complaints</h2>
     <p class="sub" style="margin:6px 0 8px">What each call was for, as heard on the radio (the dispatcher's complaint; Whisper's usual garbles like
@@ -330,7 +346,7 @@ tr.removed td{opacity:.55}
       for (const x of list) { const p = parts(x.t); grid[p.dow][p.hour]++; byDay.set(p.day, (byDay.get(p.day) || 0) + 1); }
       return {grid, byDay};
     };
-    return {cov, covHours, covDays: [...covDays].sort(), emptyDays: emptyDays.size, harv, unplaced, huhsOut,
+    return {cov, covHours, covDays: [...covDays].sort(), emptyDays: emptyDays.size, active, harv, unplaced, huhsOut,
             calls: bin(data.calls), harvB: bin(harv)};
   }
 
@@ -409,6 +425,7 @@ tr.removed td{opacity:.55}
   function render(){
     if (!data) return;
     const A = aggregate(), avg = mode === "avg";
+    A.bt = (data.breakthrough || []).filter(b => A.active.has(parts(b.t).day));
     document.querySelectorAll(".hlabel").forEach(el => el.textContent = harvLabel());
     document.querySelectorAll("#mode button").forEach(b => b.classList.toggle("on", b.dataset.v === mode));
     $("#modeNote").textContent = avg
@@ -421,6 +438,7 @@ tr.removed td{opacity:.55}
         ($("#incNear").checked ? ` · within a 10-min walk of Adams House${A.unplaced ? ` (${A.unplaced} Harvard call${A.unplaced === 1 ? "" : "s"} with no place left out)` : ""}` : "") +
         ($("#noHuhs").checked ? ` · ${A.huhsOut} HUHS call${A.huhsOut === 1 ? "" : "s"} left out` : ""), "var(--s-harv)"],
       ["Harvard share", nC ? (100 * nH / nC).toFixed(1) + "%" : "–", "of dispatches", null],
+      ["⚡ Breakthrough", A.bt.length, `${days ? (A.bt.length / days * 7).toFixed(1) : "–"} per week · ${A.bt.filter(b => b.harvard).length} at Harvard addresses`, null],
       ["Time analyzed", days >= 1 ? days.toFixed(1) + " days" : A.covHours.toFixed(1) + " h", `${data.transmissions.toLocaleString()} transmissions` +
         (A.emptyDays ? ` · ${A.emptyDays} day${A.emptyDays === 1 ? "" : "s"} with no dispatches left out (feed gaps)` : ""), null],
     ].map(([k, v, n, c]) => `<div class="tile"><div class="k">${c ? `<span class="sw" style="background:${c}"></span>` : ""}${k}</div><div class="v">${typeof v === "number" ? v.toLocaleString() : v}</div><div class="n">${n}</div></div>`).join("");
@@ -452,6 +470,7 @@ tr.removed td{opacity:.55}
     }
 
     renderDispatches();
+    renderBreakthrough(A);
     renderComplaints(A);
     renderConflicts();
     const removed = data.harvard.filter(a => a.removed && (a.level === "high" || $("#incMed").checked));
@@ -460,6 +479,7 @@ tr.removed td{opacity:.55}
     const hf = [];
     if (hWhen) { rows = rows.filter(a => Object.entries(hWhen).every(([k, v]) => parts(a.t)[k] === v)); hf.push(whenLabel(hWhen)); }
     if (hComplaint) { rows = rows.filter(a => (complaintOf(a) || "(not heard)") === hComplaint); hf.push(hComplaint); }
+    A_bt = A.bt;
     renderMap(A.harv.filter(a => (!hWhen || Object.entries(hWhen).every(([k, v]) => parts(a.t)[k] === v)) &&
       (!hComplaint || (complaintOf(a) || "(not heard)") === hComplaint)), hf, nH);
     $("#harvCount").textContent = hf.length ? `· ${rows.length} of ${nH}` : (nH ? `· ${nH}` : "");
@@ -477,7 +497,7 @@ tr.removed td{opacity:.55}
 
   // ---- map of Harvard calls (Leaflet + OpenStreetMap tiles)
   const ADAMS = [42.37182, -71.116627], NEAR_RING_M = 630;    // round(metres / 60) <= 10 min, as walk_minutes() counts
-  let map = null, mapLayer = null, mapFit = null;
+  let map = null, mapLayer = null, btLayer = null, mapFit = null, A_bt = [];
   function renderMap(list, hf, nH){
     const el = $("#map");
     if (!window.L) {
@@ -494,6 +514,7 @@ tr.removed td{opacity:.55}
       L.circleMarker(origin, {radius: 5, color: "#0d1117", weight: 2, fillColor: "#9ec5f4", fillOpacity: 1})
         .bindTooltip("Adams House (Russell Hall, 26 Plympton St)", {direction: "top", offset: [0, -6]}).addTo(map);
       mapLayer = L.layerGroup().addTo(map);
+      btLayer = L.layerGroup().addTo(map);
       el.addEventListener("click", () => map.scrollWheelZoom.enable());        // wheel-zoom once the map is clicked,
       el.addEventListener("mouseleave", () => map.scrollWheelZoom.disable());  // so scrolling the page doesn't zoom it
     }
@@ -523,7 +544,17 @@ tr.removed td{opacity:.55}
     const placed = list.length - unplaced;
     $("#mapCount").textContent = list.length ? `· ${placed} call${placed === 1 ? "" : "s"} at ${gs.length} place${gs.length === 1 ? "" : "s"}` : "";
     $("#mapWhen").innerHTML = hf.length ? `<span class="chip">${esc(hf.join(" · "))} · ${list.length} of ${nH}<button id="mapWhenX" title="Show all Harvard calls">✕</button></span>` : "";
-    $("#mapKey").innerHTML = `<span><i style="background:#ff6b81"></i>Harvard call</span>` +
+    if (btLayer) btLayer.clearLayers();
+    if ($("#mapBt") ? $("#mapBt").checked : store.get("mapBt", false)) {
+      for (const b of (A_bt || [])) {
+        if (!b.point) continue;
+        L.circleMarker([b.point[0], b.point[1]], {radius: 7, color: "#ffffff", weight: 2.5, fillColor: b.harvard ? "#ff6b81" : "#ffd28a", fillOpacity: 1})
+          .bindTooltip(`<b>⚡ ${esc(b.what)}</b> · ${esc(b.where || "")}${b.harvard ? "" : " (not Harvard)"}<br>${esc(fmtWhen(b.t))}`, {direction: "top", offset: [0, -8]})
+          .addTo(btLayer);
+      }
+    }
+    $("#mapKey").innerHTML = `<span><label style="display:inline-flex;gap:5px;align-items:center;cursor:pointer"><input type="checkbox" id="mapBt" ${store.get("mapBt", false) ? "checked" : ""}> ⚡ show breakthrough calls (white ring; amber = not Harvard)</label></span>` +
+      `<span><i style="background:#ff6b81"></i>Harvard call</span>` +
       ($("#incMed").checked ? `<span><i style="background:#f0a020"></i>possible only</span>` : "") +
       `<span>bigger circle = more calls at that place</span><span><i class="ring"></i>${data.near_minutes || 10}-min walk from Adams House</span>` +
       (unplaced ? `<span>${unplaced} call${unplaced === 1 ? "" : "s"} not on the map: no place named (e.g. "HUPD requesting" with no address)</span>` : "");
@@ -545,6 +576,33 @@ tr.removed td{opacity:.55}
         `<div>${a.audio_url ? `<button class="play${playing === a.audio_url ? " on" : ""}" data-audio="${esc(a.audio_url)}">▶</button>` : ""}</div></div>`).join("") +
       `</div></div>`;
   }
+
+  // ---- breakthrough calls
+  let btSeg = store.get("btSeg", "all");
+  function renderBreakthrough(A){
+    document.querySelectorAll("#btSeg button").forEach(b => b.classList.toggle("on", b.dataset.v === btSeg));
+    const rows = A.bt.filter(b => btSeg === "all" || (btSeg === "harvard") === !!b.harvard).sort((x, y) => y.t - x.t);
+    const nH = A.bt.filter(b => b.harvard).length;
+    $("#btCount").textContent = A.bt.length ? `· ${A.bt.length} (${nH} at Harvard addresses, ${A.bt.length - nH} not)` : "";
+    $("#btTable").innerHTML = rows.length ? `<table><thead><tr><th>When</th><th>Time-critical</th><th>Where</th><th>Harvard?</th><th>What was said</th><th></th></tr></thead><tbody>` +
+      rows.map(b => `<tr><td class="t">${esc(fmtWhen(b.t))}</td><td><b>${esc(b.what)}</b><div class="m" style="font-size:11px;color:var(--muted)">heard “${esc(b.heard || "")}”</div></td>
+        <td>${esc(b.where || "")}<div class="m" style="font-size:11px;color:var(--muted)">${b.walk_min != null ? b.walk_min + " min from Adams" : ""}</div></td>
+        <td>${b.harvard ? `<span class="lvl high">Harvard</span>` : `<span class="lvl medium">not Harvard</span>`}</td>
+        <td class="tx">${esc(b.text)}</td><td>${b.audio_url ? `<button class="play" data-audio="${esc(b.audio_url)}">▶</button>` : ""}</td></tr>`).join("") + `</tbody></table>`
+      : `<div class="empty">No breakthrough calls in the analyzed time${btSeg === "all" ? "" : " with this filter"}.</div>`;
+  }
+  $("#btSeg").onclick = e => { const b = e.target.closest("button"); if (!b) return; btSeg = b.dataset.v; store.set("btSeg", btSeg); render(); };
+  document.addEventListener("change", async e => {
+    if (e.target.id === "mapBt") { store.set("mapBt", e.target.checked); render(); }
+    const sel = e.target.closest("[data-cfix]");
+    if (sel) {
+      sel.disabled = true;
+      const r = await fetch("/api/analyze/complaint", {method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({id: sel.dataset.cfix, complaint: sel.value})});
+      if (!r.ok) { sel.disabled = false; const j = await r.json().catch(() => ({})); return alert(j.error || "Couldn't save that"); }
+      load();
+    }
+  });
 
   // ---- chief complaints
   let callById = new Map(), cSort = store.get("cSort", "all"), hWhen = null, hComplaint = null;
@@ -619,7 +677,10 @@ tr.removed td{opacity:.55}
     const always = !addr ? "" : `<span style="margin-left:auto;display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center">` +
       (listed ? `<span class="ok">${listed}</span> every call at ${esc(addr)} (Settings › Harvard places) · change: ${c.crew === "harvard" ? no : yes}`
               : `Every call at ${esc(addr)}: ${yes} ${no}`) + `</span>`;
-    return dispatchActionsCore(c, terms) + always;
+    const opts = ["", ...(data.complaint_choices || [])].map(o =>
+      `<option value="${esc(o)}" ${o === (c.complaint_fixed ? c.complaint : "") ? "selected" : ""}>${o ? esc(o) : `as heard${c.complaint_heard || (!c.complaint_fixed && c.complaint) ? ": " + esc(c.complaint_fixed ? (c.complaint_heard || "nothing") : c.complaint) : ""}`}</option>`).join("");
+    const fix = `<span style="display:inline-flex;gap:6px;align-items:center">Complaint <select data-cfix="${esc(c.id)}" style="font-size:12px;padding:3px 6px" title="Correct what this call was for (e.g. it turned into a cardiac arrest)">${opts}</select>${c.complaint_fixed ? `<span class="ok">corrected</span>` : ""}</span>`;
+    return dispatchActionsCore(c, terms) + fix + always;
   }
   function dispatchActionsCore(c, terms){
     if (c.removed) return `Ruled out as a Harvard call. ${rb("dispatches", c.id, "clear", "Put back")}`;
@@ -675,14 +736,48 @@ tr.removed td{opacity:.55}
     if (!words.length) return h;
     return h.replace(new RegExp("\\b(" + words.map(w => esc(w).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") + ")\\b", "gi"), "<mark>$1</mark>");
   }
+  // ---- supporting transmissions (other keyups, any channel, the crew attaches to a call)
+  let suppFor = null, suppList = [], suppScan = null, suppT = null;
+  function suppPanel(c){
+    const sc = suppScan, running = sc && (sc.state === "listing" || sc.state === "transcribing");
+    const scanTxt = !sc ? "" : running ? (sc.state === "listing" ? "Listing this call's time from OpenMHz…" : `Transcribing short keyups: ${sc.done} of ${sc.total}…`)
+      : sc.state === "error" ? `<span class="err">Couldn't: ${esc(sc.error)}</span>` : `Short keyups transcribed (${sc.total}).`;
+    return `<div class="supp"><div class="row" style="justify-content:space-between"><b style="font-size:13px">Transmissions from 5 min before to 30 min after (all channels)</b>
+      <span class="row" style="gap:8px"><span class="m">${scanTxt}</span>${running ? "" : `<button data-suppscan="${esc(c.id)}" title="Only for this call: get the short keyups (3 s or less) the monitor skips in long mode from OpenMHz and transcribe them">Transcribe short keyups too</button>`}</span></div>` +
+      (suppList.length ? suppList.map(x => `<div class="r"><span class="tt" style="font-family:var(--mono);color:var(--muted)">${fmtClock(x.t)}</span>
+        <span class="m">${esc(x.talkgroup_name || "")}${x.short ? " · short" : ""}</span><span class="tx" style="font-family:var(--mono)">${esc(x.text)}</span>
+        <span style="white-space:nowrap">${x.audio_url ? `<button class="play" data-audio="${esc(x.audio_url)}">▶</button>` : ""} <button class="dq yes" data-suppadd="${esc(x.audio_url)}" data-cid="${esc(c.id)}">Add</button></span></div>`).join("")
+        : `<div class="m" style="padding:6px 0">Nothing else transcribed around this call${sc && sc.state === "done" ? "" : ". Short keyups (3 s or less) aren't transcribed in long mode; press “Transcribe short keyups too”."}</div>`) + `</div>`;
+  }
+  async function loadSupp(){
+    clearTimeout(suppT);
+    if (!suppFor) return;
+    const r = await fetch(`/api/analyze/support?id=${encodeURIComponent(suppFor)}`), j = await r.json().catch(() => ({}));
+    if (!r.ok) { suppList = []; suppScan = {state: "error", error: j.error || "couldn't load"}; }
+    else { suppList = j.candidates || []; suppScan = j.scan; }
+    renderDispatches();
+    if (suppScan && (suppScan.state === "listing" || suppScan.state === "transcribing")) suppT = setTimeout(loadSupp, 2000);
+  }
+  async function suppPost(path, body){
+    const r = await fetch(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) alert(j.error || "Couldn't save that");
+    return r.ok;
+  }
+
   function dRow(c){
     const open = openId === c.id, dur = c.last && c.last > c.t ? Math.round((c.last - c.t) / 60e3) : 0;
     const tags = (c.confirmed ? `<span class="ok">Harvard ✓</span>` : c.harvard ? `<span class="lvl ${c.harvard}">${c.harvard === "high" ? "Harvard" : "possible"}</span>` : "") +
       (c.removed ? `<span class="rmnote">not Harvard (ruled out)</span>` : "") +
       (c.acuity ? `<span class="acu ${c.acuity}">${esc(c.acuity)} acuity</span>` : "") + (c.level ? `<span class="acu">${esc(c.level)}</span>` : "");
-    const tl = open ? `<div class="tl">${c.timeline.map(e => `<div class="e ${e.note ? "note" : ""}"><span class="tt">${fmtClock(e.t)}</span>
-        <span class="tx">${hl(e.text, e.hits)}</span><span>${e.audio_url ? `<button class="play" data-audio="${esc(e.audio_url)}">▶</button>` : ""}</span></div>`).join("")
-        || `<div class="m">No transmissions kept for this call.</div>`}<div class="acts">${dispatchActions(c)}</div></div>` : "";
+    const items = [...c.timeline.map(e => ({...e, kind: e.note ? "note" : ""})),
+                   ...(c.support || []).map(x => ({t: x.t, text: `[${x.talkgroup_name}] ${x.text}`, audio_url: x.audio_url, hits: [], kind: "support"}))]
+      .sort((a, b) => a.t - b.t);
+    const tl = open ? `<div class="tl">${items.map(e => `<div class="e ${e.kind}"><span class="tt">${fmtClock(e.t)}</span>
+        <span class="tx">${hl(e.text, e.hits)}</span><span style="white-space:nowrap">${e.audio_url ? `<button class="play" data-audio="${esc(e.audio_url)}">▶</button>` : ""}${e.kind === "support" ?
+          ` <button data-supprm="${esc(e.audio_url)}" data-cid="${esc(c.id)}" title="Remove this supporting transmission">✕</button>` : ""}</span></div>`).join("")
+        || `<div class="m">No transmissions kept for this call.</div>`}<div class="acts">${dispatchActions(c)}
+        <button data-suppopen="${esc(c.id)}" title="Attach other keyups about this call (any channel), e.g. a Fire dispatch update">${suppFor === c.id ? "Hide" : "Add"} supporting transmission…</button></div>${suppFor === c.id ? suppPanel(c) : ""}</div>` : "";
     return `<div class="d ${open ? "open" : ""}" data-did="${esc(c.id)}"><div class="dh">
       <div class="when">${esc(fmtWhen(c.t))}</div>
       <div class="what"><b>${esc(c.complaint || "Complaint not heard")}</b>${c.age ? ` · ${esc(c.age)}` : ""}
@@ -725,6 +820,14 @@ tr.removed td{opacity:.55}
   $("#dSort").onchange = () => { flt.sort = $("#dSort").value; renderDispatches(); };
   document.addEventListener("click", async e => {
     if (e.target.closest("[data-audio]")) return;
+    const so = e.target.closest("[data-suppopen]");
+    if (so) { suppFor = suppFor === so.dataset.suppopen ? null : so.dataset.suppopen; suppList = []; suppScan = null; renderDispatches(); return loadSupp(); }
+    const sa = e.target.closest("[data-suppadd]");
+    if (sa) { sa.disabled = true; if (await suppPost("/api/analyze/support", {id: sa.dataset.cid, audio_url: sa.dataset.suppadd, add: true})) { await load(); loadSupp(); } return; }
+    const sr = e.target.closest("[data-supprm]");
+    if (sr) { sr.disabled = true; if (await suppPost("/api/analyze/support", {id: sr.dataset.cid, audio_url: sr.dataset.supprm, add: false})) { await load(); loadSupp(); } return; }
+    const ss = e.target.closest("[data-suppscan]");
+    if (ss) { ss.disabled = true; if (await suppPost("/api/analyze/support/scan", {id: ss.dataset.suppscan})) loadSupp(); return; }
     const pl = e.target.closest("[data-place]");
     if (pl) {
       pl.disabled = true;
@@ -801,6 +904,7 @@ tr.removed td{opacity:.55}
     const counts = `${c.processed} analyzed (${c.reused} reused from logs, ${c.whisper} newly transcribed)` +
       (c.already ? ` · ${c.already} already analyzed earlier` : "") + (c.skipped_short ? ` · ${c.skipped_short} short ones skipped (long mode)` : "") +
       (c.failed ? ` · ${c.failed} couldn't be downloaded or transcribed (retried next run)` : "") +
+      (c.days_failed ? ` · ${c.days_failed} day${c.days_failed === 1 ? "" : "s"} OpenMHz wouldn't list (skipped; run again to fill in)` : "") +
       ` · ${c.alerts} Harvard alert${c.alerts === 1 ? "" : "s"}` +
       (running ? ` · charts update every ${data?.refresh_every || 50} calls (last at ${data?.updated_at ?? 0})` : "");
     $("#prog").innerHTML = `<b>${esc(what)}</b> Day ${Math.min(job.days_done + (running ? 1 : 0), job.days_total)} of ${job.days_total}.` +

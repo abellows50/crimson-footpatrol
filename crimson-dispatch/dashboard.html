@@ -43,6 +43,8 @@ section.card{background:var(--panel);border:1px solid var(--line);border-radius:
 #active.show{display:block}
 .alert-big{border-radius:10px;padding:18px;border:2px solid var(--crimson-2);background:linear-gradient(180deg,#5a0c1a,#2b0910);position:relative}
 .alert-big.medium{border-color:var(--amber);background:linear-gradient(180deg,#4a3209,#251a07)}
+.btbadge{display:inline-block;background:#fff;color:#7a0016;font-weight:800;letter-spacing:.08em;border-radius:6px;padding:2px 8px;margin-right:6px;font-size:12px}
+.btbadge.nh{background:#ffd28a;color:#3a2200}
 .alert-big.flash{animation:flash 1s steps(2,start) infinite}
 @keyframes flash{50%{box-shadow:0 0 0 6px rgba(255,59,85,.55),0 0 60px rgba(255,59,85,.5)}}
 .alert-big .kicker{font-size:13px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#ffb3bf}
@@ -699,7 +701,8 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
   function notify(a){
     if (!("Notification" in window) || Notification.permission !== "granted") return;
     try {
-      const n = new Notification((a.level === "high" ? "🚑 HARVARD CALL: " : "Possible Harvard call: ") + a.hits.map(h => h.term).join(", "),
+      const n = new Notification(a.breakthrough ? `⚡ BREAKTHROUGH: ${btWhat(a)} · ${a.breakthrough_where || ""}${a.harvard ? "" : " (not a Harvard address)"}`
+        : (a.level === "high" ? "🚑 HARVARD CALL: " : "Possible Harvard call: ") + a.hits.map(h => h.term).join(", "),
         {body: a.text, tag: a.id, requireInteraction: a.level === "high", renotify: true});
       n.onclick = () => { window.focus(); n.close(); };
     } catch {}
@@ -849,9 +852,14 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
     $("#feedCount").textContent = state.status.calls_processed ? state.status.calls_processed + " clips" : "";
   }
 
+  // breakthrough: a time-critical call (cardiac arrest, chest pain, stroke, overdose...) within a 10-min walk of Adams
+  // House, Harvard address or not
+  const btWhat = a => ((a.hits || []).find(h => h.category === "Breakthrough") || {term: ""}).term.replace(/^BREAKTHROUGH: /, "");
+  const btBadge = a => a.breakthrough ? `<span class="btbadge" title="Time-critical call within a 10-min walk of Adams House">⚡ BREAKTHROUGH</span>` +
+    (a.harvard ? "" : `<span class="btbadge nh" title="HUPD doesn't cover this address">NOT A HARVARD ADDRESS</span>`) : "";
   function alertItem(a){
     const acked = a.acked_by ? `acknowledged by ${esc(a.acked_by)}` : (a.level === "high" ? "<b style='color:#ff8a9b'>not acknowledged</b>" : "");
-    return `<div class="a ${a.level}" data-alert="${a.id}"><div class="h">${esc(a.hits.map(h => h.term).join(", "))}${a.test ? "" : `<button class="ax" data-dismissalert="${a.id}" title="Not a real call: remove from this list">✕</button>`}</div>
+    return `<div class="a ${a.level}" data-alert="${a.id}"><div class="h">${btBadge(a)}${esc(a.hits.map(h => h.term).join(", "))}${a.test ? "" : `<button class="ax" data-dismissalert="${a.id}" title="Not a real call: remove from this list">✕</button>`}</div>
       <div class="s" style="margin:3px 0">${acuBadge(a.acuity, a.acuity_why, "always")}</div>
       ${a.ai_summary ? `<div class="aisum"><b>Summary:</b> ${esc(a.ai_summary)}</div>` : ""}
       <div class="s">${fmtTime(a.time)} · ${esc(a.talkgroup_name)}${a.while_off ? " · <b>while monitor was off</b>" : ""} · ${acked}</div>
@@ -891,7 +899,10 @@ body.demo .brand .dot{background:#b48cff;box-shadow:0 0 0 4px rgba(180,140,255,.
     const unacked = !a.acked_by && !ackedLocal.has(a.id);
     const tx = (a.transmissions || []).map(t => `<div>${fmtTime(t.time)} [${esc(t.talkgroup_name)}] ${esc(t.text || "(no speech)")} ${t.audio_url ? `<button class="play" data-audio="${esc(t.audio_url)}">▶</button>` : ""}</div>`).join("");
     $("#active").innerHTML = `<div class="alert-big ${a.level} ${unacked && a.level === "high" ? "flash" : ""}">
-      <div class="kicker">${a.while_off ? "HAPPENED WHILE THE MONITOR WAS OFF · " : ""}${a.test ? "TEST · " : ""}${a.level === "high" ? "Ambulance call at a Harvard location" : "Possible Harvard call"} · ${fmtTime(a.time)} (${ago(a.time)})</div>
+      <div class="kicker">${a.while_off ? "HAPPENED WHILE THE MONITOR WAS OFF · " : ""}${a.test ? "TEST · " : ""}${a.breakthrough
+        ? `Breakthrough: time-critical call ${a.breakthrough_min ?? "?"} min walk from Adams House${a.harvard ? " · Harvard location" : " · NOT a Harvard address"}`
+        : a.level === "high" ? "Ambulance call at a Harvard location" : "Possible Harvard call"} · ${fmtTime(a.time)} (${ago(a.time)})</div>
+      ${a.breakthrough ? `<div style="margin:4px 0">${btBadge(a)}</div>` : ""}
       <div class="terms">${esc(a.hits.map(h => h.term).join(" · "))}</div>
       ${a.acuity ? `<div>${acuBadge(a.acuity, a.acuity_why, true)}</div>` : ""}
       ${a.ai_summary ? `<div class="aisum big"><b>Summary:</b> ${esc(a.ai_summary)}</div>` : ""}

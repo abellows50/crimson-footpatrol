@@ -53,6 +53,7 @@ UA = "CrimsonEMS-Dispatch-Alert/1.0 (+student EMS dispatch monitor)"  # used for
 
 CONTEXT_WINDOW_S = 45        # transmissions on one talkgroup within this window are matched together
 ALERT_DEDUPE_S = 180         # same location within this window updates the existing alert
+BREAKTHROUGH_DEDUPE_S = 900  # ... and for a time-critical call ("unresponsive", then "cardiac arrest" at the same address)
 LATE_UPLOAD_SLACK_MS = 90_000  # re-ask for calls up to 90 s older than the cursor (out-of-order uploads)
 HALLUCINATIONS = {"thank you", "thanks for watching", "you", "bye", "thank you for watching",
                   "so", "okay", "uh", "um", "music"}
@@ -491,15 +492,24 @@ class Pusher:
     def _send(self, alert, kind):
         a = self.args
         if kind == "alert":
-            terms = ", ".join(h["term"] for h in alert["hits"])
+            terms = ", ".join(h["term"] for h in alert["hits"] if h.get("category") != "Breakthrough")
             title = ("HARVARD CALL: " if alert["level"] == "high" else "Possible Harvard call: ") + terms
-            if alert.get("acuity") == "high":
+            bt = next((h for h in alert["hits"] if h.get("category") == "Breakthrough"), None)
+            if bt:
+                what = bt["term"].split(": ", 1)[-1]
+                title = (f"BREAKTHROUGH {what.upper()}, {bt.get('where')} ({bt.get('walk_min')} min)"
+                         + (f" - HARVARD: {terms}" if alert.get("harvard") else " - NOT a Harvard address"))
+            if bt:
+                pass                                       # time-critical already says it
+            elif alert.get("acuity") == "high":
                 title = "HIGH ACUITY " + title
             elif alert.get("acuity") == "low":
                 title += " (low acuity)"
             body = f'[{alert["talkgroup_name"]}] "{alert["text"]}"'
             prio = "5" if alert["level"] == "high" else "3"
             tags = "rotating_light,ambulance" if alert["level"] == "high" else "warning"
+            if bt:
+                tags = "rotating_light,heartpulse,ambulance"
         else:
             title, body, prio, tags = alert["title"], alert["text"], "4", "warning"
         if a.ntfy_topic:
@@ -884,6 +894,14 @@ class Monitor:
         if hits and (filters.get("no_huhs") or filters.get("near_only")):
             hits = self.matcher.apply_alarm_filters(hits, context_text, filters)
 
+        # a "breakthrough" call: time-critical (cardiac arrest, chest pain, stroke, overdose...) within a 10-min walk of
+        # Adams House, Harvard address or not. Kept apart from the Harvard hits: it never makes a call "Harvard"
+        bt = None
+        if text and not suspect and not filtered:
+            # the complaint must be in this transmission; the place may come from the one before ("13 Brattle St..." /
+            # "This is coming in as an unconscious") only when this one names no place of its own
+            own = [h for h in hits if not h.get("from_context")]
+            bt = self.matcher.breakthrough(text, own, place_text=" ".join(x[1] for x in list(ctx)[-2:]) if ctx else text)
         rec = {"id": call.get("_id"), "time": t_ms, "talkgroup": tg, "talkgroup_name": tg_name,
                "len": call.get("len"), "audio_url": url, "text": text, "error": err,
                "hits": hits, "dispatch": looks_like_dispatch(context_text), "backfill": bool(backfill),
@@ -893,6 +911,8 @@ class Monitor:
             rec["asr_text"], rec["fixed"] = asr_text, fixed
         if rescued:
             rec["faint"] = True          # recovered from a clip Whisper first judged "no speech"
+        if bt:
+            rec["breakthrough"] = bt
         with self.lock:
             self.calls.append(rec)
             self.status["last_call_ms"] = max(self.status["last_call_ms"] or 0, t_ms)
@@ -911,22 +931,25 @@ class Monitor:
             log("Board error:\n" + traceback.format_exc())
         if text:
             self._say(f"[{tg_name}] {text}" + (f"   <-- {[h['term'] for h in hits]}" if hits else ""))
-        if hits and (not backfill or backfill == "rewind"):
+        alert_hits = hits + ([bt] if bt else [])
+        if alert_hits and (not backfill or backfill == "rewind"):
             # EMS only: a Harvard fire alarm / odor / elevator call doesn't alarm; an actual fire at Harvard does
             kind = self.board.kind_of(rec["audio_url"])
             if kind is None:
                 p = parse_radio(context_text, tg_name)
                 kind = call_kind(p["complaint"], p["units"], [context_text])
-            if kind == "fire":
+            if kind == "fire" and not bt:
                 self._say(f"(Harvard fire call that isn't an actual fire: no alert) {[h['term'] for h in hits]}")
             else:
-                self.raise_alert(rec, hits, context_text)
+                self.raise_alert(rec, alert_hits, context_text)
 
     def raise_alert(self, rec, hits, context_text):
         level = "high" if any(h["level"] == "high" for h in hits) else "medium"
         with self.lock:
             for a in reversed(self.alerts):
-                if a.get("test") or a.get("dismissed") or rec["time"] - a["last_time"] > ALERT_DEDUPE_S * 1000:
+                both_bt = a.get("breakthrough") and any(h.get("category") == "Breakthrough" for h in hits)
+                window = BREAKTHROUGH_DEDUPE_S if both_bt else ALERT_DEDUPE_S
+                if a.get("test") or a.get("dismissed") or rec["time"] - a["last_time"] > window * 1000:
                     continue
                 if self._same_incident(hits, a["hits"], rec["time"] - a["last_time"]):
                     # same incident: fold this transmission in
@@ -935,6 +958,7 @@ class Monitor:
                     a["last_time"] = rec["time"]
                     known = {h["term"] for h in a["hits"]}
                     a["hits"] += [h for h in hits if h["term"] not in known]
+                    self._mark_kind(a)
                     acu, why = classify_acuity(" ".join(x["text"] or "" for x in a["transmissions"]))
                     if acu and (a.get("acuity") != "high"):
                         a["acuity"], a["acuity_why"] = acu, why
@@ -960,6 +984,7 @@ class Monitor:
                      "acuity": classify_acuity(context_text)[0], "acuity_why": classify_acuity(context_text)[1],
                      "transmissions": [{"time": rec["time"], "text": rec["text"], "audio_url": rec["audio_url"],
                                         "talkgroup_name": rec["talkgroup_name"]}]}
+            self._mark_kind(alert)
             self.alerts.append(alert)
         self._say(f"*** {level.upper()} ALERT: {[h['term'] for h in hits]}")
         self._to_analyze("add_live_alert", alert)
@@ -970,11 +995,22 @@ class Monitor:
             self.pusher.send(alert)
 
     @staticmethod
+    def _mark_kind(alert):
+        """breakthrough: a time-critical call near Adams House; harvard: a Harvard call (either, or both)."""
+        bt = [h for h in alert["hits"] if h.get("category") == "Breakthrough"]
+        alert["breakthrough"] = bool(bt)
+        alert["harvard"] = any(h.get("category") != "Breakthrough" for h in alert["hits"])
+        if bt:
+            alert["breakthrough_where"], alert["breakthrough_min"] = bt[0].get("where"), bt[0].get("walk_min")
+
+    @staticmethod
     def _same_incident(new_hits, old_hits, gap_ms):
-        """Fold a transmission into an open alert only when it names the same place."""
+        """Fold a transmission into an open alert only when it names the same place (a breakthrough hit counts as
+        its address, so "chest pain, 60 Plympton" and "60 Plympton Street (Quincy House)" are one call)."""
         generic = {"HUPD / private", "General"}
-        new_loc = {h["term"] for h in new_hits if h.get("category") not in generic}
-        old_loc = {h["term"] for h in old_hits if h.get("category") not in generic}
+        key = lambda h: (h.get("where") or h["term"]).lower()
+        new_loc = {key(h) for h in new_hits if h.get("category") not in generic}
+        old_loc = {key(h) for h in old_hits if h.get("category") not in generic}
         if new_loc:
             return bool(new_loc & old_loc)
         if old_loc:
@@ -1678,6 +1714,16 @@ def make_handler(monitor, config, hub, args, demo=None):
                     return self._json({"error": "feedback not available"}, 404)
                 self._json({"stats": fb.stats(config.get().get("whisper_prompt", "")), "clips": fb.clip_verdicts(),
                             "alerts": {k: r["verdict"] for k, r in fb.alerts.items()}})
+            elif p == "/api/analyze/support":
+                an = getattr(monitor, "analyzer", None)
+                if not an:
+                    return self._json({"error": "Analyze is only on the live dashboard."}, 404)
+                qs = dict(urllib.parse.parse_qsl(urllib.parse.urlparse(self.path).query))
+                try:
+                    cands = an.support_candidates(qs.get("id"))
+                except ValueError as e:
+                    return self._json({"error": str(e)}, 400)
+                self._json({"candidates": cands, "scan": an._scans.get(qs.get("id"))})
             elif p == "/api/analyze":
                 an = getattr(monitor, "analyzer", None)
                 if not an:
@@ -1767,6 +1813,28 @@ def make_handler(monitor, config, hub, args, demo=None):
                 try:
                     ruling = body.get("ruling") or ("not" if body.get("removed", True) else "clear")
                     an.set_ruling(body.get("kind"), body.get("id"), ruling, body.get("by"))
+                except ValueError as e:
+                    return self._json({"error": str(e)}, 400)
+                return self._json({"ok": True})
+            if p in ("/api/analyze/support", "/api/analyze/support/scan"):
+                an = getattr(monitor, "analyzer", None)
+                if not an:
+                    return self._json({"error": "Analyze is only on the live dashboard."}, 404)
+                try:
+                    if p.endswith("/scan"):
+                        return self._json({"scan": an.scan_short(body.get("id"))})
+                    an.set_support(body.get("id"), body.get("audio_url"), bool(body.get("add", True)), body.get("by"))
+                except ValueError as e:
+                    return self._json({"error": str(e)}, 400)
+                except RuntimeError as e:
+                    return self._json({"error": str(e)}, 409)
+                return self._json({"ok": True})
+            if p == "/api/analyze/complaint":
+                an = getattr(monitor, "analyzer", None)
+                if not an:
+                    return self._json({"error": "Analyze is only on the live dashboard."}, 404)
+                try:
+                    an.set_complaint(body.get("id"), str(body.get("complaint") or "").strip(), body.get("by"))
                 except ValueError as e:
                     return self._json({"error": str(e)}, 400)
                 return self._json({"ok": True})

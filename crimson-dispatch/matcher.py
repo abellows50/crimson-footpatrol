@@ -355,6 +355,34 @@ NEAR_MINUTES = 10
 HUHS_TEXT = re.compile(r"\b(huhs|hhs|h2hs|harvard (university )?health services)\b", re.I)
 
 
+# ---- "breakthrough" calls: time-critical complaints (minutes to an EMT change the outcome), not "sick person"
+TIME_CRITICAL = [
+    ("Cardiac arrest", r"cardiac arrest|\bcpr\b|not breathing|no pulse|pulseless"),
+    ("Stroke", r"\bstroke\b|\bcva\b|facial droop|slurred speech"),
+    ("Severe bleeding", r"hemorrhag\w*|haemorrhag\w*|severe bleeding|uncontrolled bleeding|heavy bleeding|bleeding heavily|"
+                        r"arterial bleed\w*|\bstab(?:bed|bing| wound)\w*|gunshot|shot (?:in|to) the"),
+    ("Anaphylaxis", r"anaphyla\w*|epi ?pen|throat (?:is )?(?:swelling|closing)"),
+    ("Overdose", r"overdose|\bnarcan\b|\bopioid"),
+    ("Difficulty breathing", r"difficulty breathing|trouble breathing|short(?:ness)? of breath|respiratory distress|"
+                             r"can'?t breathe|struggling to breathe|\bchoking\b"),
+    ("Unresponsive", r"\bunresponsive\b|\bunconscious\b|not responding|loss of consciousness"),
+    ("Seizure", r"\bseiz(?:ure|ures|ing)\b"),
+    ("Pedestrian struck", r"pedestrian struck|(?:struck|hit) by (?:a |the )?(?:car|vehicle|bus|truck)"),
+    ("Drowning", r"\bdrown\w*"),
+]
+TIME_CRITICAL = [(label, re.compile(rx, re.I)) for label, rx in TIME_CRITICAL]
+_NEGATED = re.compile(r"(?:\bno|\bdenies|\bdenying|\bnot|\bwithout|\bnegative for)\s+(?:\w+\s+)?$", re.I)
+
+
+def time_critical(text):
+    """(label, words heard) for the first time-critical complaint in the text ("no pulse" in "has no pulse" counts, "denies difficulty breathing" doesn't)."""
+    for label, rx in TIME_CRITICAL:
+        for m in rx.finditer(text or ""):
+            if not _NEGATED.search(text[max(0, m.start() - 20):m.start()]):
+                return label, m.group(0)
+    return None
+
+
 def walk_minutes(lat, lon, origin=ADAMS_HOUSE):
     """Same estimate as the dashboard (geo.travel): straight line x 1.35 for real streets, at a brisk 1.35 m/s."""
     import math
@@ -540,9 +568,9 @@ class Matcher:
                 h["note"] = (h.get("note", "") + f"; address: {not_here}").lstrip("; ")
         return sorted(hits.values(), key=lambda h: (-LEVEL_RANK[h["level"]], -h["score"]))
 
-    def place_minutes(self, hits, text):
-        """Walking minutes from Adams House to where a Harvard call is: the Harvard address / corner it matched,
-        else a named Harvard place, else any address in the text; None if it can't be placed (or another town)."""
+    def place_of(self, hits, text):
+        """(minutes, place) from Adams House to where a call is: the Harvard address / corner it matched, else a
+        named Harvard place, else any address in the text; None if it can't be placed (or another town)."""
         loc = self.locator
         if not loc.ok:
             return None
@@ -550,13 +578,41 @@ class Matcher:
         if detect_town(toks)[0]:
             return None
         pts = [loc.point(tokenize(h["where"]), number_readings) for h in hits if h.get("where")]
-        pts = [p[:2] for p in pts if p]
+        pts = [(p[0], p[1], p[2]) for p in pts if p]
         if not pts:
-            pts = [pp for pp in (loc.place_point(h["term"]) for h in hits if h.get("level") == "high") if pp]
+            pts = [(pp[0], pp[1], h["term"].split(" (")[0]) for h in hits if h.get("level") == "high"
+                   for pp in [loc.place_point(h["term"])] if pp]
         if not pts:
             pt = loc.point(toks, number_readings)
-            pts = [pt[:2]] if pt else []
-        return min(walk_minutes(p[0], p[1]) for p in pts) if pts else None
+            pts = [pt] if pt else []
+        if not pts:
+            return None
+        best = min(pts, key=lambda p: walk_minutes(p[0], p[1]))
+        return walk_minutes(best[0], best[1]), best[2]
+
+    def place_minutes(self, hits, text):
+        """Walking minutes from Adams House to where a Harvard call is, or None (see place_of)."""
+        p = self.place_of(hits, text)
+        return p[0] if p else None
+
+    def breakthrough(self, text, hits=(), place_text=None):
+        """A "breakthrough" call: a time-critical complaint (cardiac arrest, stroke, severe bleeding,
+        anaphylaxis, overdose, ...) at a place within a NEAR_MINUTES walk of Adams House, Harvard address or not.
+        Returns a hit (category "Breakthrough") or None."""
+        tc = time_critical(text)
+        if not tc:
+            return None
+        hits = [h for h in hits if h.get("category") != "Breakthrough"]
+        p = self.place_of(hits, text)
+        if not p and place_text and place_text != text:
+            p = self.place_of(hits, place_text)      # the address was in the transmission before
+        if not p or p[0] > NEAR_MINUTES:
+            return None
+        harvard = any(h["level"] == "high" and h.get("category") != "Breakthrough" for h in hits)
+        return {"term": f"BREAKTHROUGH: {tc[0]}", "level": "high", "category": "Breakthrough", "heard": tc[1],
+                "score": 1.0, "where": p[1], "walk_min": p[0], "harvard": harvard,
+                "note": f"time-critical call {p[0]} min walk from Adams House"
+                        + ("" if harvard else " · NOT a Harvard address")}
 
     def apply_alarm_filters(self, hits, text, filters):
         """The crew's alarm filters (Settings > Harvard places): a Harvard call at HUHS, or one that isn't within a

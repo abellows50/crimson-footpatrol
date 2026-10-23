@@ -25,7 +25,7 @@ import time
 import urllib.parse
 from zoneinfo import ZoneInfo
 
-from board import Board
+from board import Board, COMPLAINTS
 
 TZ = ZoneInfo("America/New_York")
 TALKGROUP = "1227"                       # Cambridge - Pro EMS
@@ -34,6 +34,10 @@ PAGE_PAUSE_S = 1.5                       # between OpenMHz listing pages: stay p
 LOG_TAG = "analyze"                      # the private Monitor logs to logs/replay-analyze-calls.jsonl
 RESCORE_TAG = "analyze-rescore"          # a re-score builds logs/replay-analyze-rescore-*.jsonl, then swaps them in
 ALERTS = "analyze-alerts.json"
+COMPLAINT_FIXES = "analyze-complaint-fixes.json"
+SUPPORT = "analyze-support.json"          # {first radio clip of a call: [transmission]}: what the crew attached to it
+SUPPORT_BEFORE_MS, SUPPORT_AFTER_MS = 5 * 60_000, 30 * 60_000
+SHORT = "analyze-short-transcripts.json"  # {clip url: {t, talkgroup_name, text, len}}: short keyups transcribed on request   # {radio clip url: {"complaint", "by", "at"}}: the crew's corrections
 COVERAGE = "analyze-coverage.json"
 LIVE_GAP_MS = 5 * 60_000                 # the live feed counts as covering the time between polls less than this apart
 _FILES = threading.Lock()                # the store / alerts / coverage files: Analyze, re-scores and the live feed
@@ -162,7 +166,7 @@ class AnalyzeJob:
         self.day = None                      # start of the day being worked on
         self.listed = self.done = 0          # calls in the current day / processed so far in it
         self.counts = {"processed": 0, "already": 0, "reused": 0, "whisper": 0, "skipped_short": 0, "failed": 0,
-                       "alerts": 0}
+                       "alerts": 0, "days_failed": 0}
         self.child = None
         self.partial = None                  # [day start, last call handled] of the day in progress
 
@@ -201,7 +205,7 @@ class AnalyzeJob:
             if self.cancelled:
                 break
             q = {"filter-type": "talkgroup", "filter-code": self.tg, "time": cursor}
-            batch = self.monitor.fetcher.get_json(base + urllib.parse.urlencode(q)).get("calls", [])
+            batch = self._fetch_page(base + urllib.parse.urlencode(q))
             if not batch:
                 break
             times = [_iso_ms(c["time"]) for c in batch]
@@ -215,6 +219,23 @@ class AnalyzeJob:
             cursor = oldest
             time.sleep(PAGE_PAUSE_S)
         return sorted(found.values(), key=lambda c: c["time"])
+
+    def _fetch_page(self, url):
+        """One page of OpenMHz's call list; a slow or failed page (timeout, browser check) is tried again before
+        giving up, so one hiccup doesn't stop a long analysis."""
+        for attempt, wait in enumerate((5, 20, 60, None)):
+            try:
+                return self.monitor.fetcher.get_json(url).get("calls", [])
+            except Exception as e:
+                if wait is None or self.cancelled:
+                    raise
+                self.log(f"Analyze: OpenMHz didn't answer ({type(e).__name__}); trying again in {wait} s")
+                self.state = f"OpenMHz is slow; retrying in {wait} s"
+                for _ in range(wait):
+                    if self.cancelled:
+                        raise
+                    time.sleep(1)
+                self.state = "listing"
 
     def _save_alerts(self):
         path = os.path.join(self.log_dir, ALERTS)
@@ -258,7 +279,16 @@ class AnalyzeJob:
                     break
                 self.day, self.listed, self.done = a, 0, 0
                 self.state = "listing"
-                calls = self._list_day(a, b)
+                try:
+                    calls = self._list_day(a, b)
+                except Exception as e:
+                    if self.cancelled:
+                        break
+                    # this day couldn't be listed even after retries: skip it (not marked analyzed) and go on
+                    self.counts["days_failed"] += 1
+                    self.log(f"Analyze: couldn't list {dt.datetime.fromtimestamp(a / 1000, TZ):%a %m-%d} from OpenMHz "
+                             f"({type(e).__name__}); skipping it, run again later to fill it in")
+                    continue
                 self.state = "transcribing"
                 last = a
                 for c in calls:
@@ -501,6 +531,7 @@ class Analyzer:
         self._judged = {}                   # (rules signature, text) -> judge() / explain() result
         self._awalk = {}                    # (alert id, data build) -> [lat, lon, place] or None
         self._texts = {}                    # ("alerts" | "dispatches", id) -> its transmissions' text (latest results)
+        self._scans = {}                    # dispatch id -> progress of "transcribe the short keyups around this call"
         self._store_ids = None              # ids already in the analyzed store (read once, then kept up to date)
         self._addr = {}                     # (dispatch id, board's address, data build) -> address to use
         self._keys = {}                     # (address text, data build) -> crew-list keys it stands for
@@ -592,6 +623,131 @@ class Analyzer:
             _write_json(path, dq)
             self._dq_version += 1
         return dq
+
+    def set_complaint(self, dispatch_id, complaint, by=None):
+        """The crew's correction of what a call was for ("possibly a seizure" -> Cardiac arrest). Kept by the call's
+        radio clips, so it survives re-scores; an empty complaint removes the correction."""
+        urls = self._urls_of("dispatches", str(dispatch_id))
+        if not urls:
+            raise ValueError("no such dispatch in the analyzed calls")
+        path = os.path.join(self.log_dir, COMPLAINT_FIXES)
+        with self.lock:
+            fixes = _read_json(path, {})
+            for u in urls:
+                if complaint:
+                    fixes[u] = {"complaint": str(complaint)[:40], "by": (by or "")[:40], "at": _now_ms()}
+                else:
+                    fixes.pop(u, None)
+            _write_json(path, fixes)
+            self._dq_version += 1
+
+    # ---- supporting transmissions: other keyups (any channel) the crew attaches to a call, e.g. Fire dispatch's
+    # "update, CPR in progress over the phone" four minutes after Pro's "possibly a seizure"
+    def _call(self, dispatch_id):
+        res = self._cache[1] or self.results()
+        return next((c for c in res.get("calls", []) if c["id"] == str(dispatch_id)), None)
+
+    def support_candidates(self, dispatch_id):
+        """Transcribed transmissions on every monitored channel from 5 min before to 30 min after the call."""
+        c = self._call(dispatch_id)
+        if not c:
+            raise ValueError("no such dispatch in the analyzed calls")
+        lo, hi = c["t"] - SUPPORT_BEFORE_MS, (c.get("last") or c["t"]) + SUPPORT_AFTER_MS
+        have = {e.get("audio_url") for e in c["timeline"]} | {x["audio_url"] for x in c.get("support", [])}
+        days = {time.strftime("%Y-%m-%d", time.localtime(ms / 1000)) for ms in (lo, c["t"], hi)}
+        out = {}
+        for d in sorted(days):
+            for r in _read_jsonl(os.path.join(self.log_dir, f"calls-{d}.jsonl")):
+                if lo <= (r.get("time") or 0) <= hi and (r.get("text") or "").strip() and r.get("audio_url") \
+                        and r["audio_url"] not in have:
+                    out[r["audio_url"]] = {"t": r["time"], "talkgroup_name": r.get("talkgroup_name"), "text": r["text"][:400],
+                                           "audio_url": r["audio_url"], "len": r.get("len")}
+        for u, x in _read_json(os.path.join(self.log_dir, SHORT), {}).items():
+            if lo <= x["t"] <= hi and x.get("text") and u not in have:
+                out.setdefault(u, dict(x, audio_url=u, short=True))
+        return sorted(out.values(), key=lambda x: x["t"])
+
+    def scan_short(self, dispatch_id):
+        """Only when the crew asks, for one call: list its time window from OpenMHz and transcribe the short keyups the
+        live monitor skips in long mode (e.g. a 2-second "CPR in progress"), so they can be added as support."""
+        c = self._call(dispatch_id)
+        if not c:
+            raise ValueError("no such dispatch in the analyzed calls")
+        st = self._scans.get(c["id"])
+        if st and st["state"] in ("listing", "transcribing"):
+            return st
+        if self.monitor.transcriber is None:
+            raise RuntimeError("Whisper is still loading; try again in a minute")
+        st = self._scans[c["id"]] = {"state": "listing", "done": 0, "total": 0, "error": None}
+        threading.Thread(target=self._scan_short, args=(c, st), name="analyze-short", daemon=True).start()
+        return st
+
+    def _scan_short(self, c, st):
+        lo, hi = c["t"] - SUPPORT_BEFORE_MS, (c.get("last") or c["t"]) + SUPPORT_AFTER_MS
+        path = os.path.join(self.log_dir, SHORT)
+        try:
+            known = {x["audio_url"] for x in self.support_candidates(c["id"])} | \
+                {e.get("audio_url") for e in c["timeline"]} | set(_read_json(path, {}))
+            found, cursor = {}, hi + 60_000
+            for _ in range(40):
+                batch = self.monitor._api("calls/older", {"time": cursor})
+                if not batch:
+                    break
+                times = [_iso_ms(x["time"]) for x in batch]
+                for x, t in zip(batch, times):
+                    if lo <= t <= hi and x.get("url") and x["url"] not in known:
+                        found[x["url"]] = (t, x)
+                if min(times) >= cursor or min(times) < lo:
+                    break
+                cursor = min(times)
+                time.sleep(PAGE_PAUSE_S)
+            st["state"], st["total"] = "transcribing", len(found)
+            names = self.monitor.tg_names()
+            prompt = self.monitor.config.get().get("whisper_prompt", "")
+            for url, (t, x) in sorted(found.items(), key=lambda kv: kv[1][0]):
+                while self.monitor.work.qsize():
+                    time.sleep(0.5)                     # live traffic goes first
+                text = ""
+                try:
+                    clip = self.monitor._download(url)
+                    try:
+                        text = self.monitor.transcriber.transcribe(clip, prompt) or ""
+                    finally:
+                        os.unlink(clip)
+                except Exception as e:
+                    self.log(f"Analyze: couldn't transcribe a short keyup ({type(e).__name__})")
+                with _FILES:
+                    short = _read_json(path, {})
+                    short[url] = {"t": t, "talkgroup_name": names.get(str(x.get("talkgroupNum")), str(x.get("talkgroupNum"))),
+                                  "text": text.strip(), "len": x.get("len")}
+                    _write_json(path, short)
+                st["done"] += 1
+            st["state"] = "done"
+        except Exception as e:
+            st["state"], st["error"] = "error", f"{type(e).__name__}: {e}"
+            self.log(f"Analyze: short-keyup scan failed: {st['error']}")
+
+    def set_support(self, dispatch_id, audio_url, add=True, by=None):
+        c = self._call(dispatch_id)
+        if not c or not c["timeline"]:
+            raise ValueError("no such dispatch in the analyzed calls")
+        key = next((e["audio_url"] for e in c["timeline"] if e.get("audio_url")), None)
+        if add:
+            item = next((x for x in self.support_candidates(dispatch_id) if x["audio_url"] == audio_url), None)
+            if not item:
+                raise ValueError("that transmission isn't near this call in the logs")
+        path = os.path.join(self.log_dir, SUPPORT)
+        with self.lock:
+            sup = _read_json(path, {})
+            lst = [x for x in sup.get(key, []) if x["audio_url"] != audio_url]
+            if add:
+                lst.append(dict(item, by=(by or "")[:40], at=_now_ms()))
+            if lst:
+                sup[key] = sorted(lst, key=lambda x: x["t"])
+            else:
+                sup.pop(key, None)
+            _write_json(path, sup)
+            self._dq_version += 1
 
     def remember_ruling_urls(self):
         """Older rulings only knew the alert id: record their clips so they survive a re-score."""
@@ -882,7 +1038,13 @@ class Analyzer:
                                for e in inc.get("timeline") or []]}
                  for iid, inc in incidents.items() if iid not in board.aliases]
         calls.sort(key=lambda c: c["t"])
+        fixes = _read_json(os.path.join(self.log_dir, COMPLAINT_FIXES), {})
+        support = _read_json(os.path.join(self.log_dir, SUPPORT), {})
         for c in calls:
+            c["support"] = next((support[e["audio_url"]] for e in c["timeline"] if e.get("audio_url") in support), [])
+            fx = next((fixes[e["audio_url"]] for e in c["timeline"] if e.get("audio_url") in fixes), None)
+            if fx:
+                c["complaint_heard"], c["complaint"], c["complaint_fixed"] = c.get("complaint"), fx["complaint"], True
             c["where_heard"] = c["where"]
             c["where"] = self.dispatch_address(c)
             c["walk_min"] = self.dispatch_walk(c)
@@ -898,6 +1060,21 @@ class Analyzer:
                    "text": a.get("text") or "", "audio_url": a.get("audio_url"), "acuity": a.get("acuity")}
                   for a in _read_json(paths[1], {}).values() if a.get("talkgroup_name") == tg_name]
         alerts.sort(key=lambda a: a["t"])
+        # breakthrough calls (time-critical, within a 10-min walk of Adams House, Harvard address or not) have their own
+        # list; only alerts with a Harvard hit are Harvard calls, at the level of their Harvard hits
+        raw = {a["id"]: a for a in _read_json(paths[1], {}).values() if a.get("talkgroup_name") == tg_name}
+        bt_raw = []
+        for a in alerts:
+            hits = raw[a["id"]].get("hits", [])
+            bt = next((h for h in hits if h.get("category") == "Breakthrough"), None)
+            hv = [h for h in hits if h.get("category") != "Breakthrough"]
+            a["has_harvard"] = bool(hv)
+            if bt:
+                bt_raw.append((a, bt))
+                a["breakthrough"] = bt["term"].replace("BREAKTHROUGH: ", "")
+                a["terms"] = [h["term"] for h in hv]
+                a["level"] = "high" if any(h["level"] == "high" for h in hv) else "medium"
+        alerts = [a for a in alerts if a["has_harvard"]]
         # crew rulings, matched by id or by a shared radio clip (so an alert's ruling also covers its dispatch,
         # and rulings survive a re-score); if a call somehow has two, the latest wins
         dq = _read_json(os.path.join(self.log_dir, NOT_HARVARD), {})
@@ -994,6 +1171,42 @@ class Analyzer:
                                    "audio_url": first.get("audio_url"), "acuity": c.get("acuity"), "urls": urls,
                                    "dispatch_id": c["id"], "removed": None, "confirmed": c["confirmed"], "manual": True})
         alerts = [a for a in alerts if a["level"]]          # "Follow the new rules: not Harvard"
+        harvard_ids = {a["id"] for a in alerts if not a.get("removed")}
+        breakthrough = []
+        for a, bt in bt_raw:
+            linked = [url_dispatch[u] for u in a["urls"] if u in url_dispatch]
+            c = linked[0] if linked else None
+            pt = None
+            if loc is not None and loc.ok and bt.get("where"):
+                from matcher import tokenize, number_readings
+                ll = loc.point(tokenize(bt["where"]), number_readings) or loc.place_point(bt["where"])
+                pt = [ll[0], ll[1], bt["where"]] if ll else None
+            breakthrough.append({"id": a["id"], "t": a["t"], "what": bt["term"].replace("BREAKTHROUGH: ", ""),
+                                 "heard": bt.get("heard"), "where": bt.get("where"), "walk_min": bt.get("walk_min"),
+                                 "harvard": a["id"] in harvard_ids, "complaint": (c or {}).get("complaint"),
+                                 "dispatch_id": c["id"] if c else None, "text": a["text"], "audio_url": a["audio_url"],
+                                 "point": pt, "acuity": a.get("acuity")})
+        # the crew corrected what a call was for: a time-critical complaint near Adams House makes it a breakthrough
+        # call (or names it), anything else takes it off the list
+        from matcher import TIME_CRITICAL
+        tc = {label for label, _ in TIME_CRITICAL}
+        for c in calls:
+            if not c.get("complaint_fixed"):
+                continue
+            mine = [b for b in breakthrough if b["dispatch_id"] == c["id"]]
+            if c["complaint"] not in tc:
+                breakthrough = [b for b in breakthrough if b["dispatch_id"] != c["id"]]
+                continue
+            for b in mine:
+                b["what"], b["fixed"] = c["complaint"], True
+            pt = self.dispatch_point(c)
+            if not mine and pt and walk_minutes(pt[0], pt[1]) <= NEAR_MINUTES:
+                first = next((e for e in c["timeline"] if not e["note"]), {})
+                breakthrough.append({"id": "d-" + c["id"], "t": c["t"], "what": c["complaint"], "fixed": True,
+                                     "heard": "corrected by the crew", "where": pt[2], "walk_min": walk_minutes(pt[0], pt[1]),
+                                     "harvard": c.get("harvard") == "high", "complaint": c["complaint"],
+                                     "dispatch_id": c["id"], "text": first.get("text", ""), "audio_url": first.get("audio_url"),
+                                     "point": list(pt), "acuity": c.get("acuity")})
         self._texts = {("alerts", a["id"]): a.get("texts") or [] for a in alerts}
         self._texts.update({("dispatches", c["id"]): [e["text"] for e in c["timeline"] if not e["note"]] for c in calls})
         # how far each Harvard call is from Adams House ("near Harvard College" checkbox on the page)
@@ -1044,6 +1257,7 @@ class Analyzer:
             a.pop("wheres", None)
             a.pop("texts", None)
             a.pop("where_terms", None)
+            a.pop("has_harvard", None)
         alerts.sort(key=lambda a: a["t"])
         out = {"talkgroup": self.tg, "talkgroup_name": tg_name, "transmissions": len(recs),
                "calls": calls, "harvard": alerts, "conflicts": conflicts,
@@ -1051,6 +1265,10 @@ class Analyzer:
                "updated": _now_ms(), "updated_at": job.counts["processed"] if job else None,
                "refresh_every": REFRESH_EVERY, "near_minutes": NEAR_MINUTES, "near_label": "Adams House",
                "near_origin": list(ADAMS_HOUSE),
-               "stale": bool(recs) and not current}
+               "stale": bool(recs) and not current, "breakthrough": breakthrough,
+               "complaint_choices": sorted({lb for _, lb, _ in COMPLAINTS} | tc)}
+        sup_of = {c["id"]: c["support"] for c in calls if c.get("support")}
+        for b in breakthrough:
+            b["support"] = sup_of.get(b["dispatch_id"], [])
         self._cache = (sig, out)
         return out

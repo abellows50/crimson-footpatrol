@@ -16,6 +16,7 @@ This is best-effort parsing of automatic transcripts: it will sometimes miss or 
 things, and the dashboard says so.
 """
 import json
+import functools
 import re
 import threading
 import uuid
@@ -317,7 +318,33 @@ class trying_rules:
         _TRY.rules = None
 
 
+@functools.lru_cache(maxsize=20000)
 def extract_address(text):
+    """The address a transmission gives, with the house number as the Harvard matcher reads it where that's a real
+    address on the same street: the radio says "17, 15, Mass Ave, 17, 15, Mass Ave" for 1715 Mass Ave, which the
+    plain reading below takes as 15 Mass Ave (the matcher votes across the read-back and checks the city's list)."""
+    found = _extract_address(text)
+    if not found:
+        return found
+    try:
+        import matcher
+        import parcels
+        loc = parcels.load()
+        if not loc.ok:
+            return found
+        num, rest = found[0].split(" ", 1)
+        got = next((l for l in loc.locate(matcher.tokenize(text), matcher.number_readings)
+                    if l["kind"] == "address" and l["verdict"] != "unknown"), None)
+        same_street = got and got["street"].replace(" ", "")[:3] == \
+            rest.lower().replace(" ", "").replace("mass", "massachusetts")[:3]
+        if same_street and str(got["number"]) != num:
+            return f"{got['number']} {rest}", f"{got['number']} {found[1].split(' ', 1)[1]}"
+    except Exception:
+        pass
+    return found
+
+
+def _extract_address(text):
     """'425, Mass Ave.' -> ('425 Mass Ave', '425 mass ave'); '4-1 Jackson Street' -> 41 Jackson Street."""
     best = None
     for m in _ADDR_RE.finditer(text):
